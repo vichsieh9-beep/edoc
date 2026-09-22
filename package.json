@@ -1,0 +1,14 @@
+{
+  "name": "edoc",
+  "private": true,
+  "version": "0.0.0",
+  "description": "EDoc — Editable Document",
+  "type": "module",
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
