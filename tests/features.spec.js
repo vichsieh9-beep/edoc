@@ -157,8 +157,8 @@ test('imported revision package is sanitized: injected scripts never run, conten
 test('imported review HTML is sanitized: scripts in the file and in its revision never run', async ({ page }, testInfo) => {
   await openDoc(page);
   const { baseHash, html } = await page.evaluate(async () => ({
-    baseHash: await ensureHash('v0.7'),
-    html: cleanSnapshot(VERSION_DATA['v0.7'].html),
+    baseHash: await EDoc.ensureHash('v0.7'),
+    html: EDoc.cleanSnapshot(EDoc.versions['v0.7'].html),
   }));
   const revision = {
     id: 'rev-evil', label: 'Draft', baseVersion: 'v0.7', baseHash, status: 'draft',

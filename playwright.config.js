@@ -9,6 +9,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // One golden file per name, shared by every OS (CI runs on Linux, development on macOS).
+  snapshotPathTemplate: '{testDir}/__golden__/{arg}{ext}',
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: BASE_URL,
@@ -23,7 +25,7 @@ export default defineConfig({
       },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    // Engine tests call the diff functions directly; one browser is enough.
-    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: /engine\.spec/ },
+    // Engine, golden and ingest tests exercise the engine and tooling; one browser is enough.
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: /(engine|golden|ingest)\.spec/ },
   ],
 });

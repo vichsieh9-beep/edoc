@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}} — EDoc {{latestVersion}}</title>
+<style>
+{{style}}</style>
+</head>
+<body>
+<div class="toolbar" id="toolbar">
+  <div class="title">{{title}}</div><span class="engine-badge">EDoc Engine {{engineVersion}} · Publish Ready</span>
+
+  <div class="version-control" id="versionControl">
+    <button class="version-button" id="versionButton">
+      <span id="versionLabel">{{latestVersion}} · Current</span><span class="caret">▼</span>
+    </button>
+    <div class="version-menu" id="versionMenu"></div>
+  </div>
+
+  <button id="toggleChanges" class="state-blue">顯示變更：開</button>
+  <button id="editState" class="state-gray" disabled>正式版：唯讀</button>
+  <button id="newRevisionBtn" class="revision-button">開始修訂</button>
+  <button id="editorBtn" title="選填；只需設定一次，會保存在這台瀏覽器">編輯者：未設定</button>
+  <span id="publishStatus" class="publish-status local">Local</span>
+  <button id="shareUrlBtn" class="share-button" disabled>複製公開網址</button>
+  <button id="copyBtn">複製全文</button>
+  <button id="exportReviewBtn" class="action-cyan">匯出審閱版</button>
+  <button id="exportRevisionBtn" class="action-purple" disabled>匯出修訂包</button>
+  <button id="importRevisionBtn" class="action-orange">匯入修訂</button>
+  <input id="importFile" class="hidden-input" type="file" accept=".json,.html,text/html,application/json">
+  <button id="acceptRevisionBtn" class="action-accept" disabled>建立新版本</button>
+  <button id="printBtn" onclick="window.print()">列印 / PDF</button>
+</div>
+
+<main class="wrap">
+  <section class="version-card" id="versionCard">
+    <div class="version-card-head">
+      <span class="version-card-title" id="cardTitle"></span>
+      <span class="badge" id="compareBadge"></span>
+      <span class="badge" id="statusBadge"></span>
+    </div>
+    <div class="version-card-summary" id="cardSummary"></div>
+    <div class="hash-text" id="versionHash"></div>
+    <details id="changeDetails">
+      <summary>詳細變更</summary>
+      <ul id="detailList"></ul>
+    </details>
+  </section>
+
+  <section class="revision-panel" id="revisionPanel">
+    <div class="revision-head">
+      <span class="revision-title" id="revisionTitle"></span>
+      <span class="badge" id="revisionBase"></span>
+      <span class="badge" id="revisionStatus"></span>
+    </div>
+    <div class="revision-summary" id="revisionSummary"></div>
+    <div class="revision-meta" id="revisionMeta"></div>
+    <div class="hash-text" id="revisionHash"></div>
+    <div class="revision-conflict" id="revisionConflict">此修訂不是基於目前最新版，需人工合併後才能接受為新版本。</div>
+  </section>
+
+  <div id="doc" class="doc" contenteditable="false" spellcheck="false"></div>
+
+  <div class="legend">
+    <span class="dot blue"></span>藍色＝此版本／修訂相較基準新增或修改　
+    <span class="dot red"></span>紅色刪除線＝相較基準刪除
+    <div class="hint" style="margin-top:8px">正式版本永久唯讀。按「開始修訂」即可直接編輯；建立新版本時系統會自動比對 Base Version、產生 Diff、版本摘要與 Changelog。編輯者為選填，匯入舊基準修訂時會提示衝突。</div>
+  </div>
+</main>
+
+
+<div class="editor-backdrop" id="editorBackdrop">
+  <div class="editor-dialog">
+    <h3>設定編輯者</h3>
+    <input id="editorNameInput" type="text" placeholder="例如：Vic、客戶法務、PM">
+    <div class="hint">選填，只需設定一次；會儲存在這台瀏覽器。</div>
+    <div class="editor-actions">
+      <button id="clearEditorBtn">清除</button>
+      <button id="cancelEditorBtn">取消</button>
+      <button id="saveEditorBtn" class="state-blue">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script id="documentMeta" type="application/json">{{documentMeta}}</script>
+<script id="versionData" type="application/json">{{versionData}}</script>
+<script id="documentState" type="application/json">{{documentState}}</script>
+<script id="revisionData" type="application/json">{{revisionData}}</script>
+<script>
+{{script}}</script>
+</body>
+</html>

@@ -161,11 +161,11 @@ test.describe('P0 diff correctness', () => {
 
   test('case 9b: switching versions does not mutate stored snapshots', async ({ page }) => {
     await openDoc(page);
-    const snapshot = await page.evaluate(() => JSON.stringify(Object.values(VERSION_DATA).map((v) => [v.html, v.hash])));
+    const snapshot = await page.evaluate(() => JSON.stringify(Object.values(EDoc.versions).map((v) => [v.html, v.hash])));
     for (const v of ['v0.1', 'v0.3', 'v0.5', 'v0.7', 'v0.2']) await openVersion(page, v);
     await startRevision(page);
     await openVersion(page, 'v0.6');
-    const after = await page.evaluate(() => JSON.stringify(Object.values(VERSION_DATA).map((v) => [v.html, v.hash])));
+    const after = await page.evaluate(() => JSON.stringify(Object.values(EDoc.versions).map((v) => [v.html, v.hash])));
     expect(after).toBe(snapshot);
   });
 });

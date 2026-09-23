@@ -148,5 +148,5 @@ export async function expectDiff(page, { blue, red, before, after }) {
 }
 
 export async function versionKeys(page) {
-  return page.evaluate(() => versionOrder());
+  return page.evaluate(() => EDoc.versionOrder());
 }

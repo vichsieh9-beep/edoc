@@ -16,13 +16,13 @@ test.beforeEach(async ({ page }) => {
       // Draft DOM exactly as startRevision() prepares it: clean snapshot + block ids.
       draftOf(html) {
         const w = document.createElement('div');
-        w.innerHTML = cleanSnapshot(html);
-        annotateBaseBlocks(w);
+        w.innerHTML = EDoc.cleanSnapshot(html);
+        EDoc.annotateBaseBlocks(w);
         return w;
       },
       plainOf(html) {
         const w = document.createElement('div');
-        w.innerHTML = cleanSnapshot(html);
+        w.innerHTML = EDoc.cleanSnapshot(html);
         return w;
       },
       liWith(root, text) {
@@ -34,7 +34,7 @@ test.beforeEach(async ({ page }) => {
       },
       textOf(html) {
         const w = document.createElement('div');
-        w.innerHTML = cleanSnapshot(html);
+        w.innerHTML = EDoc.cleanSnapshot(html);
         return strip(w.textContent);
       },
       // Classify formal-diff output by markup: .deleted wins over .changed.
@@ -62,9 +62,9 @@ test.beforeEach(async ({ page }) => {
 
 test('no edit → no marks, identical content', async ({ page }) => {
   const r = await page.evaluate(() => {
-    const base = VERSION_DATA['v0.7'].html;
-    const formal = buildFormalDiff(base, __t.draftOf(base).innerHTML);
-    return { ...__t.classify(formal), same: cleanSnapshot(formal) === cleanSnapshot(base) };
+    const base = EDoc.versions['v0.7'].html;
+    const formal = EDoc.buildFormalDiff(base, __t.draftOf(base).innerHTML);
+    return { ...__t.classify(formal), same: EDoc.cleanSnapshot(formal) === EDoc.cleanSnapshot(base) };
   });
   expect(r.blue).toBe('');
   expect(r.red).toBe('');
@@ -73,11 +73,11 @@ test('no edit → no marks, identical content', async ({ page }) => {
 
 test('formal diff depends only on content, not on draft block ids', async ({ page }) => {
   const r = await page.evaluate(() => {
-    const base = VERSION_DATA['v0.7'].html;
+    const base = EDoc.versions['v0.7'].html;
     const w = __t.plainOf(base); // no data-edoc-block ids at all
     const li = __t.liWith(w, '並持續追蹤');
     li.firstChild.textContent = li.firstChild.textContent.replace('並持續追蹤', '並追蹤');
-    return __t.classify(buildFormalDiff(base, w.innerHTML));
+    return __t.classify(EDoc.buildFormalDiff(base, w.innerHTML));
   });
   expect(r.red).toBe('持續');
   expect(r.blue).toBe('');
@@ -85,13 +85,13 @@ test('formal diff depends only on content, not on draft block ids', async ({ pag
 
 test('duplicated block id (browser clones attributes on Enter) → only the new item blue', async ({ page }) => {
   const r = await page.evaluate(() => {
-    const base = VERSION_DATA['v0.7'].html;
+    const base = EDoc.versions['v0.7'].html;
     const w = __t.draftOf(base);
     const li = __t.liWith(w, '等角色有效合作');
     const clone = li.cloneNode(false); // keeps data-edoc-block, like Chrome's insertParagraph
     clone.textContent = '具備良好的時間管理能力。';
     li.after(clone);
-    return __t.classify(buildFormalDiff(base, w.innerHTML));
+    return __t.classify(EDoc.buildFormalDiff(base, w.innerHTML));
   });
   expect(r.red).toBe('');
   expect(r.blue).toBe('具備良好的時間管理能力。');
@@ -99,10 +99,10 @@ test('duplicated block id (browser clones attributes on Enter) → only the new 
 
 test('block removed without a tombstone → still shown as red strikethrough', async ({ page }) => {
   const r = await page.evaluate((L_API) => {
-    const base = VERSION_DATA['v0.7'].html;
+    const base = EDoc.versions['v0.7'].html;
     const w = __t.draftOf(base);
     __t.liWith(w, L_API.slice(0, 12)).remove();
-    return __t.classify(buildFormalDiff(base, w.innerHTML));
+    return __t.classify(EDoc.buildFormalDiff(base, w.innerHTML));
   }, L_API);
   expect(r.red).toBe(L_API.replace(/\s+/g, ''));
   expect(r.blue).toBe('');
@@ -110,14 +110,14 @@ test('block removed without a tombstone → still shown as red strikethrough', a
 
 test('empty tombstone (text deleted before the block was removed) → deleted text still shown', async ({ page }) => {
   const r = await page.evaluate((L_API) => {
-    const base = VERSION_DATA['v0.7'].html;
+    const base = EDoc.versions['v0.7'].html;
     const w = __t.draftOf(base);
     const li = __t.liWith(w, L_API.slice(0, 12));
     const tomb = li.cloneNode(false);
     tomb.classList.add('deletion-record');
     tomb.setAttribute('contenteditable', 'false');
     li.replaceWith(tomb);
-    return __t.classify(buildFormalDiff(base, w.innerHTML));
+    return __t.classify(EDoc.buildFormalDiff(base, w.innerHTML));
   }, L_API);
   expect(r.red).toBe(L_API.replace(/\s+/g, ''));
   expect(r.blue).toBe('');
@@ -125,11 +125,11 @@ test('empty tombstone (text deleted before the block was removed) → deleted te
 
 test('inline style wrapper left by the browser is not a content change', async ({ page }) => {
   const r = await page.evaluate(() => {
-    const base = VERSION_DATA['v0.7'].html;
+    const base = EDoc.versions['v0.7'].html;
     const w = __t.draftOf(base);
     const li = __t.liWith(w, '並持續追蹤');
     li.innerHTML = li.innerHTML.replace('並持續追蹤', '<span style="color: rgb(74, 163, 255);">並持續追蹤</span>');
-    return __t.classify(buildFormalDiff(base, w.innerHTML));
+    return __t.classify(EDoc.buildFormalDiff(base, w.innerHTML));
   });
   expect(r.blue).toBe('');
   expect(r.red).toBe('');
@@ -141,7 +141,7 @@ test('table cell edit → only that cell changes', async ({ page }) => {
     const base = '<table><tbody><tr><th>項目</th><th>說明</th></tr><tr><td>甲乙丙</td><td>丁戊</td></tr></tbody></table>';
     const w = __t.draftOf(base);
     w.querySelector('td').textContent = '甲丙';
-    return __t.classify(buildFormalDiff(base, w.innerHTML));
+    return __t.classify(EDoc.buildFormalDiff(base, w.innerHTML));
   });
   expect(r.red).toBe('乙');
   expect(r.blue).toBe('');
@@ -153,7 +153,7 @@ test('heading reorder → moved section is visible and both versions are preserv
     const w = __t.draftOf(base);
     const [h2a, ula, h2b, ulb] = [...w.children];
     w.prepend(h2b, ulb); // ids travel with the moved nodes, as in a real cut/paste
-    return __t.classify(buildFormalDiff(base, w.innerHTML));
+    return __t.classify(EDoc.buildFormalDiff(base, w.innerHTML));
   });
   expect(r.oldText).toBe('A段一B段二');
   expect(r.newText).toBe('B段二A段一');
@@ -163,12 +163,12 @@ test('heading reorder → moved section is visible and both versions are preserv
 
 test('stored history: recomputing every vN vs vN-1 is a faithful merge of both versions', async ({ page }) => {
   const results = await page.evaluate(() => {
-    const keys = versionOrder();
+    const keys = EDoc.versionOrder();
     const out = [];
     for (let i = 1; i < keys.length; i++) {
-      const prev = VERSION_DATA[keys[i - 1]].html;
-      const cur = VERSION_DATA[keys[i]].html;
-      const c = __t.classify(buildFormalDiff(prev, cleanSnapshot(cur)));
+      const prev = EDoc.versions[keys[i - 1]].html;
+      const cur = EDoc.versions[keys[i]].html;
+      const c = __t.classify(EDoc.buildFormalDiff(prev, EDoc.cleanSnapshot(cur)));
       out.push({
         pair: keys[i - 1] + '→' + keys[i],
         oldOk: c.oldText === __t.textOf(prev),

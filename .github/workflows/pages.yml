@@ -25,6 +25,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Built files match sources
+        run: npm run build -- --check
       - run: npx playwright install --with-deps chromium webkit
       - name: Diff regression tests
         run: npx playwright test
@@ -55,6 +57,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -R index.html .nojekyll documents _site/
+          find _site -name document.json -delete
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

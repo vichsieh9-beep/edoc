@@ -5,10 +5,13 @@
   "description": "EDoc — Editable Document",
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "ingest": "node scripts/ingest.mjs",
     "serve": "node scripts/serve.mjs",
     "test": "playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "esbuild": "0.28.2"
   }
 }
