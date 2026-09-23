@@ -48,6 +48,11 @@ Keep these separate:
 
 Engine/UI changes must not increment the document version.
 
+EDoc uses R2.x for the engine version, not the global `YYMMDDHHX` build number
+(RULES.md §0.6): this project has no UAT/Prod split — pushing to `main` deploys
+the public site directly. Every engine/UI change that reaches `main` bumps R2.x;
+the document version (v0.x) only changes when the document body is formally revised.
+
 ## Deployment
 
 Target repository:
