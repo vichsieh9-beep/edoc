@@ -5,6 +5,8 @@ import { buildFormalDiff, analyzeFormalDiff } from './engine/diff.js';
 import { sha256 } from './engine/hash.js';
 import { sanitizeRevisionHtml } from './engine/revision.js';
 import { versionOrder } from './engine/version.js';
+import { listChanges } from './engine/changes.js';
+import { usableAiSummary } from './engine/ai-summary.js';
 import { el } from './ui/elements.js';
 import { state, latestVersion, ensureHash } from './ui/state.js';
 import { initEditorDialog, refreshEditorButton } from './ui/editor-name.js';
@@ -23,7 +25,7 @@ initPublishBar();
 /* Stable engine surface for tests and tooling (e.g. Phase 4 AI changelog). */
 window.EDoc={
   engineVersion: ENGINE_VERSION,
-  buildFormalDiff, analyzeFormalDiff, cleanSnapshot, annotateBaseBlocks, sanitizeRevisionHtml,
+  buildFormalDiff, analyzeFormalDiff, cleanSnapshot, annotateBaseBlocks, sanitizeRevisionHtml, listChanges, usableAiSummary,
   sha256, ensureHash, versionOrder: ()=>versionOrder(state.versions),
   get versions(){ return state.versions; },
 };

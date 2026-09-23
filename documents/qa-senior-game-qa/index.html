@@ -30,7 +30,7 @@ button:disabled{opacity:.65;cursor:default}
 .version-button{min-width:126px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:14px}
 .version-button .caret{font-size:11px;color:var(--muted)}
 .version-menu{position:absolute;top:calc(100% + 8px);left:0;width:390px;max-width:min(90vw,390px);
-  background:#202020;border:1px solid #555;border-radius:12px;padding:7px;box-shadow:0 18px 45px rgba(0,0,0,.42);display:none}
+  background:#202020;border:1px solid #555;border-radius:12px;padding:7px;box-shadow:0 18px 45px rgba(0,0,0,.42);display:none;z-index:40}
 .version-menu.open{display:block}
 .version-item{padding:10px 11px;border-radius:9px;cursor:pointer;border:1px solid transparent}
 .version-item:hover{background:#303030}
@@ -123,11 +123,17 @@ padding:2px 8px;color:#ffe6a6;background:#4b3c1d}
 .editor-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 
 @media(max-width:900px){.toolbar .title{width:100%;margin-right:0}.version-control{margin-right:auto}}
+
+/* AI semantic summary (Phase 4) */
+.ai-chip{display:inline-block;font-size:11px;font-weight:700;line-height:1.5;border:1px solid #7856a3;background:#493269;color:#eee1ff;border-radius:999px;padding:0 7px;margin-right:7px;vertical-align:1px}
+.ai-stat{margin-top:4px;color:#a9a9a9;font-size:13px}
+.ai-sec{margin:8px 0 2px;color:#cdb8f5;font-size:13px;font-weight:700;list-style:none}
+.ai-meta{color:#8f8f8f;font-size:11px;font-weight:400;margin-left:6px}
 </style>
 </head>
 <body>
 <div class="toolbar" id="toolbar">
-  <div class="title">【QA】資深遊戲測試工程師</div><span class="engine-badge">EDoc Engine R2.5 · Publish Ready</span>
+  <div class="title">【QA】資深遊戲測試工程師</div><span class="engine-badge">EDoc Engine R2.6 · Publish Ready</span>
 
   <div class="version-control" id="versionControl">
     <button class="version-button" id="versionButton">
@@ -208,7 +214,7 @@ padding:2px 8px;color:#ffe6a6;background:#4b3c1d}
 <script>
 (() => {
   // src/engine/meta.js
-  var ENGINE_VERSION = "R2.5";
+  var ENGINE_VERSION = "R2.6";
 
   // src/engine/dom.js
   var BLOCK_SELECTOR = "h1,h2,p,li,td,th,blockquote";
@@ -762,6 +768,66 @@ padding:2px 8px;color:#ffe6a6;background:#4b3c1d}
     return (/* @__PURE__ */ new Date()).toISOString();
   }
 
+  // src/engine/changes.js
+  function listChanges(formalHtml) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = formalHtml;
+    const marked = (el2) => el2.classList.contains("changed") || el2.classList.contains("deleted");
+    const out = [];
+    wrap.querySelectorAll(BLOCK_SELECTOR).forEach((block) => {
+      for (let p = block.parentElement; p && p !== wrap; p = p.parentElement) if (p.matches(BLOCK_SELECTOR) && marked(p)) return;
+      const section = sectionNameFor(block, wrap);
+      if (block.classList.contains("changed")) {
+        out.push({ section, type: "added", after: normalizeWs(block.textContent) });
+        return;
+      }
+      if (block.classList.contains("deleted")) {
+        out.push({ section, type: "deleted", before: normalizeWs(block.textContent) });
+        return;
+      }
+      let before = "", after = "", touched = false;
+      for (const n of ownedTextNodes(block)) {
+        const m = n.parentElement.closest(".changed,.deleted");
+        const mark = m && block.contains(m) ? m : null;
+        if (mark) touched = true;
+        if (!mark || mark.classList.contains("deleted")) before += n.textContent;
+        if (!mark || mark.classList.contains("changed")) after += n.textContent;
+      }
+      if (touched) out.push({ section, type: "modified", before: normalizeWs(before), after: normalizeWs(after) });
+    });
+    return out;
+  }
+
+  // src/engine/ai-summary.js
+  var AI_SUMMARY_MAX = 60;
+  var AI_DETAIL_MAX = 200;
+  var AI_PLACEHOLDER_PREFIX = "語意摘要：";
+  var SECTION_PREFIX = /^[^：\s][^：]{0,19}：\S/;
+  var chars = (s) => [...s].length;
+  function aiSummaryErrors(ai, contentHash) {
+    if (!ai || typeof ai !== "object") return ["aiSummary 必須是物件"];
+    const errors = [];
+    const summary = typeof ai.summary === "string" ? ai.summary.trim() : "";
+    if (!summary) errors.push("summary 不可空白");
+    else if (chars(summary) > AI_SUMMARY_MAX) errors.push(`summary 超過 ${AI_SUMMARY_MAX} 字（目前 ${chars(summary)} 字）`);
+    if (!Array.isArray(ai.details) || !ai.details.length) errors.push("details 至少要一條");
+    else ai.details.forEach((d, i) => {
+      const t = typeof d === "string" ? d.trim() : "";
+      if (!t) errors.push(`details[${i}] 不可空白`);
+      else if (!SECTION_PREFIX.test(t)) errors.push(`details[${i}] 要以「章節名：」開頭`);
+      else if (chars(t) > AI_DETAIL_MAX) errors.push(`details[${i}] 超過 ${AI_DETAIL_MAX} 字`);
+    });
+    if (typeof ai.model !== "string" || !ai.model.trim()) errors.push("model 不可空白");
+    if (typeof ai.generatedAt !== "string" || Number.isNaN(Date.parse(ai.generatedAt))) errors.push("generatedAt 必須是 ISO 時間");
+    if (ai.contentHash !== contentHash) errors.push("contentHash 與版本內容的 SHA-256 不符");
+    return errors;
+  }
+  function usableAiSummary(version) {
+    const ai = version && version.aiSummary;
+    if (!ai || !version.hash) return null;
+    return aiSummaryErrors(ai, version.hash).length ? null : ai;
+  }
+
   // src/ui/elements.js
   var IDS = [
     "doc",
@@ -964,6 +1030,45 @@ padding:2px 8px;color:#ffe6a6;background:#4b3c1d}
   }
 
   // src/ui/version-view.js
+  function aiChip() {
+    const c = document.createElement("span");
+    c.className = "ai-chip";
+    c.textContent = "AI";
+    return c;
+  }
+  function localDate(iso) {
+    const d = new Date(iso), p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+  function renderAiSummary(data) {
+    const ai = usableAiSummary(data);
+    if (!ai) return;
+    const stat = document.createElement("div");
+    stat.className = "ai-stat";
+    stat.textContent = "變更統計：" + data.summary;
+    el.cardSummary.replaceChildren(aiChip(), document.createTextNode(ai.summary), stat);
+    const heading = (text, meta) => {
+      const li = document.createElement("li");
+      li.className = "ai-sec";
+      li.textContent = text;
+      if (meta) {
+        const m = document.createElement("span");
+        m.className = "ai-meta";
+        m.textContent = meta;
+        li.appendChild(m);
+      }
+      return li;
+    };
+    const items = ai.details.map((t) => {
+      const li = document.createElement("li");
+      li.textContent = t;
+      return li;
+    });
+    [...el.detailList.children].forEach((li) => {
+      if (li.textContent.startsWith(AI_PLACEHOLDER_PREFIX)) li.remove();
+    });
+    el.detailList.prepend(heading("AI 語意 Changelog", ai.model + " · " + localDate(ai.generatedAt) + " · 內容雜湊相符"), ...items, heading("系統統計"));
+  }
   function buildVersionMenu() {
     const { versionMenu } = el;
     versionMenu.innerHTML = "";
@@ -984,7 +1089,9 @@ padding:2px 8px;color:#ffe6a6;background:#4b3c1d}
       }
       const sum = document.createElement("div");
       sum.className = "version-summary";
-      sum.textContent = data.summary;
+      const ai = usableAiSummary(data);
+      if (ai) sum.append(aiChip(), document.createTextNode(ai.summary));
+      else sum.textContent = data.summary;
       item.append(row, sum);
       item.addEventListener("click", () => {
         versionMenu.classList.remove("open");
@@ -1056,6 +1163,7 @@ padding:2px 8px;color:#ffe6a6;background:#4b3c1d}
       el.detailList.appendChild(li);
     });
     el.versionHash.textContent = "SHA-256：" + await ensureHash(v);
+    renderAiSummary(data);
     applyCleanState();
     applyUIHighlights(v);
     buildVersionMenu();
@@ -1279,6 +1387,8 @@ padding:2px 8px;color:#ffe6a6;background:#4b3c1d}
     cleanSnapshot,
     annotateBaseBlocks,
     sanitizeRevisionHtml,
+    listChanges,
+    usableAiSummary,
     sha256,
     ensureHash,
     versionOrder: () => versionOrder(state.versions),

@@ -3,3 +3,6 @@ test-results/
 playwright-report/
 _site/
 .DS_Store
+
+# Proposal pages for V (local only, never published)
+/20??-??-??_*.html

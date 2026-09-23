@@ -24,6 +24,7 @@ try {
     for (const v of added) console.log(`+ ${v}｜${doc.versions[v].summary}`);
     const { changed } = await buildSite();
     console.log(`已寫入 ${relative(ROOT, entry.file)}，重新產生：${changed.join(', ') || '（無）'}`);
+    console.log(`提醒：${added.join('、')} 還沒有 AI 語意摘要。在 CC／Codex 對話中說「補 ${added.at(-1)} 摘要」，或執行 npm run changelog -- ${added.at(-1)}。`);
   }
   if (pendingRevisions) console.log(`注意：檔案內有 ${pendingRevisions} 筆尚未接受的修訂，不會寫入正本。`);
 } catch (e) {

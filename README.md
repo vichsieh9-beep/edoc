@@ -15,12 +15,12 @@ Each document is published as a single self-contained HTML file that works offli
 documents/<slug>/document.json   content SSOT: every formal version (never edit a formal version)
 documents/<slug>/index.html      BUILT — single-file document (do not edit by hand)
 index.html                       BUILT — Library page
-src/engine/                      diff, revision (import sanitizing, conflicts), hash, version, publish, meta (engine version R2.x)
+src/engine/                      diff, changes, ai-summary, revision (import sanitizing, conflicts), hash, version, publish, meta (R2.x)
 src/ui/                          editor, version view, draft, revision import/export, styles.css
 src/main.js                      runtime entry (bundled with esbuild into each document)
 templates/                       HTML shells for documents and the Library
-scripts/                         build, ingest, local server
-tests/                           Playwright: P0 diff cases, engine contract, golden output, features, ingest
+scripts/                         build, ingest, changelog (AI summaries), local server
+tests/                           Playwright: P0 diff cases, engine contract, golden output, features, ingest, AI summary
 ```
 
 ## Develop
@@ -47,6 +47,23 @@ only for an intended behavior change (`npx playwright test tests/golden.spec.js 
 2. 匯出審閱版 to download the HTML.
 3. `npm run ingest -- <downloaded.html>` adds the new version(s) to `document.json` and rebuilds.
    It refuses files whose existing formal versions differ from `document.json`.
+4. Ask an AI in a Claude Code / Codex session to 「補 vX.Y 摘要」 (see below), review, then push.
+
+## AI semantic summaries
+
+The offline HTML never calls an AI and holds no API key. An AI in a Claude Code / Codex
+session writes the summary:
+
+```sh
+npm run changelog                                # versions still waiting for an AI summary
+npm run changelog -- v0.8                        # change list + writing rules for the AI
+npm run changelog -- v0.8 --apply summary.json   # validate, store in document.json, rebuild
+```
+
+`summary.json` holds `summary` (one sentence, ≤ 60 characters), `details` (each starting with
+「章節名：」) and `model`. The tool adds `generatedAt` and `contentHash`; a summary is shown only
+when `contentHash` matches the version's SHA-256, and an existing one is replaced only with `--force`.
+Formal content, the engine's statistics and hashes are never changed.
 
 ## Deploy
 

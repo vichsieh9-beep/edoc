@@ -60,6 +60,23 @@ test('Published badge and copy public URL over http', async ({ page, browserName
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(page.url());
 });
 
+test('open version menu is not covered by toolbar buttons when the toolbar wraps', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await openDoc(page);
+  await page.locator('#versionButton').click();
+  const covered = await page.evaluate(() => {
+    const menu = document.getElementById('versionMenu').getBoundingClientRect();
+    return [...document.querySelectorAll('.toolbar button')].filter((btn) => {
+      const b = btn.getBoundingClientRect();
+      const x = b.left + b.width / 2, y = b.top + b.height / 2;
+      if (x <= menu.left || x >= menu.right || y <= menu.top || y >= menu.bottom) return false;
+      const top = document.elementFromPoint(x, y);
+      return top === btn || btn.contains(top);
+    }).map((btn) => btn.textContent.trim());
+  });
+  expect(covered).toEqual([]);
+});
+
 test('Local badge and disabled copy URL over file://', async ({ page }) => {
   await page.goto('file://' + DOC_FILE);
   await expect(page.locator('#publishStatus')).toHaveText('Local');

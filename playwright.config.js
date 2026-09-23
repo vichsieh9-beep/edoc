@@ -25,7 +25,7 @@ export default defineConfig({
       },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    // Engine, golden and ingest tests exercise the engine and tooling; one browser is enough.
-    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: /(engine|golden|ingest)\.spec/ },
+    // Engine, golden and tooling tests (ingest, changelog) need one browser only.
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: /(engine|golden|ingest|changelog)\.spec/ },
   ],
 });
