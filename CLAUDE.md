@@ -81,3 +81,7 @@ Versions created in the browser come back into `document.json` with
 
 Golden tests (`tests/__golden__/`) lock version hashes and exact diff output.
 Update them only for an intended engine behavior change.
+
+When asked to 「補 vX.Y 摘要」 (AI semantic summary), run `npm run changelog -- vX.Y`,
+follow the rules it prints, and write back with `npm run changelog -- vX.Y --apply <file>`.
+Never put an AI API key in the site.
