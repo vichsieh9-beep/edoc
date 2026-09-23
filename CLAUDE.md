@@ -69,8 +69,15 @@ Document URL:
 
 Never expose a GitHub PAT/token in client-side code.
 
-## Before refactor
+## Source layout
 
-Create Playwright tests covering the cases in `EDOC_HANDOFF.md`.
+Edit `src/`, `templates/` or `documents/<slug>/document.json`, then run `npm run build`.
+`documents/*/index.html` and `index.html` are build output — never edit them by hand
+(CI fails when they do not match the sources). The build must keep producing one
+self-contained HTML per document.
 
-Preserve self-contained HTML as a build/export target even if source code is modularized.
+Versions created in the browser come back into `document.json` with
+`npm run ingest -- <exported review .html>`.
+
+Golden tests (`tests/__golden__/`) lock version hashes and exact diff output.
+Update them only for an intended engine behavior change.
