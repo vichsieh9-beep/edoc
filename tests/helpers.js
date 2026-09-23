@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 
-export const DOC_URL = '/documents/qa-senior-game-qa/';
+// Relative to baseURL so the tests also run against the live site under /edoc/.
+export const DOC_URL = 'documents/qa-senior-game-qa/';
 
 // Colors from the document's CSS variables (--changed / --deleted / --text).
 const BLUE = 'rgb(74, 163, 255)';
