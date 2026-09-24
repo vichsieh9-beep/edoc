@@ -3,7 +3,7 @@
  * Draft-time markers (block ids, tombstones, revision-changed) and editor artifacts
  * (inline styles, <div> paragraphs, placeholder <br>, empty blocks) are normalized away,
  * blocks are aligned by content, and changed blocks get a token-level inline diff. */
-import { BLOCK_SELECTOR, cleanSnapshot, unwrapElement, normalizeWs, ownedTextNodes, ownText } from './dom.js';
+import { BLOCK_SELECTOR, cleanSnapshot, unwrapElement, normalizeWs, ownedTextNodes, ownText, inertContainer } from './dom.js';
 
 const ALIGN_SELECTOR=BLOCK_SELECTOR+',hr';
 const CONTAINER_SELECTOR='ul,ol,table,thead,tbody,tfoot,tr';
@@ -11,8 +11,7 @@ const EMPTY_REMOVABLE='h1,h2,p,li,blockquote';
 const PAIR_THRESHOLD=0.5;
 
 export function normalizeSnapshot(html) {
-  const w=document.createElement('div');
-  w.innerHTML=cleanSnapshot(html);
+  const w=inertContainer(cleanSnapshot(html));
   w.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable'));
   // Browsers keep computed styles as inline style / <font> wrappers when merging blocks.
   w.querySelectorAll('[style]').forEach(x=>{
@@ -269,8 +268,7 @@ export function sectionNameFor(el,root){
   return '其他';
 }
 export function analyzeFormalDiff(formalHtml){
-  const wrap=document.createElement('div');
-  wrap.innerHTML=formalHtml;
+  const wrap=inertContainer(formalHtml);
   const sectionStats=new Map();
   let addedChars=0,deletedChars=0,modifiedBlocks=0,addedBlocks=0,deletedBlocks=0;
   const count=t=>t.replace(/\s+/g,'').length;

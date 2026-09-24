@@ -1,7 +1,7 @@
-const IDS=['doc','versionButton','versionLabel','versionMenu','versionControl','versionCard','cardTitle','compareBadge',
-  'statusBadge','cardSummary','detailList','versionHash','toggleChanges','editState','newRevisionBtn','editorBtn',
-  'editorBackdrop','editorNameInput','clearEditorBtn','cancelEditorBtn','saveEditorBtn','publishStatus','shareUrlBtn',
-  'copyBtn','exportReviewBtn','exportRevisionBtn','importRevisionBtn','importFile','acceptRevisionBtn','printBtn',
-  'revisionPanel','revisionTitle','revisionBase','revisionStatus','revisionSummary','revisionMeta','revisionHash'];
+const IDS=['doc','versionButton','versionLabel','versionMenu','versionControl','toggleChanges','barRow','editGroup',
+  'whoChip','stateChip','newRevisionBtn','finishRevisionBtn','discardRevisionBtn','shareUrlBtn','copyBtn','pdfBtn',
+  'notice','noticeText','noticeActions','versionCard','cardTitle','compareBadge','statusBadge','publishBadge',
+  'cardSummary','publishNote','versionHash','changeDetails','detailList','revisionPanel','revisionBase',
+  'revisionSummary','revisionMeta','revisionHash','dialog','dialogTitle','dialogSummary','dialogNote','dialogActions'];
 
 export const el=Object.fromEntries(IDS.map(id=>[id,document.getElementById(id)]));

@@ -4,13 +4,13 @@ import { state, latestVersion, ensureHash } from './state.js';
 import { setDocHtml, leaveRevisionView } from './doc-surface.js';
 import { versionOrder } from '../engine/version.js';
 import { usableAiSummary, AI_PLACEHOLDER_PREFIX } from '../engine/ai-summary.js';
+import { sanitizeRevisionHtml } from '../engine/revision.js';
+import { renderEditBar } from './edit-bar.js';
+import { renderPublishState } from './publish-status.js';
+import { localDate } from './format.js';
 
 function aiChip() {
   const c=document.createElement('span'); c.className='ai-chip'; c.textContent='AI'; return c;
-}
-function localDate(iso) {
-  const d=new Date(iso), p=n=>String(n).padStart(2,'0');
-  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
 }
 // U1: the AI one-liner leads, the engine's change statistics follow in grey,
 // and the AI changelog comes first in 詳細變更 (replacing the placeholder line).
@@ -47,35 +47,19 @@ export function buildVersionMenu() {
     versionMenu.appendChild(item);
   });
 }
-function clearUIHighlights() {
-  [el.versionControl,el.versionCard,el.toggleChanges,el.editState,el.newRevisionBtn,el.copyBtn,el.exportReviewBtn,
-    el.exportRevisionBtn,el.importRevisionBtn,el.acceptRevisionBtn,el.printBtn]
-   .forEach(x=>x.classList.remove('ui-changed'));
-}
-function applyUIHighlights(v) {
-  clearUIHighlights();
-  const c=state.versions[v].uiChanges||[];
-  if(c.includes('revision')) el.newRevisionBtn.classList.add('ui-changed');
-  if(c.includes('exportReview')) el.exportReviewBtn.classList.add('ui-changed');
-  if(c.includes('exportRevision')) el.exportRevisionBtn.classList.add('ui-changed');
-  if(c.includes('importRevision')) el.importRevisionBtn.classList.add('ui-changed');
-  if(c.includes('acceptRevision')) el.acceptRevisionBtn.classList.add('ui-changed');
-  if(c.includes('hash')) el.versionCard.classList.add('ui-changed');
-}
 export function applyCleanState() {
   const { clean }=state;
   el.doc.classList.toggle('clean', clean);
   el.toggleChanges.textContent = clean ? '顯示變更：關' : '顯示變更：開';
-  el.toggleChanges.classList.toggle('state-blue', !clean);
-  el.toggleChanges.classList.toggle('state-gray', clean);
+  el.toggleChanges.classList.toggle('on', !clean);
+  el.toggleChanges.classList.toggle('off', clean);
 }
 export async function renderVersion(v) {
   state.activeVersion=v; state.activeRevision=null; state.suppressObserver=true;
-  const data=state.versions[v]; setDocHtml(data.html); state.suppressObserver=false;
+  // Stored html is filtered before display, so even a leaked edit link cannot inject script.
+  const data=state.versions[v]; setDocHtml(sanitizeRevisionHtml(data.html)); state.suppressObserver=false;
   el.doc.contentEditable='false'; el.doc.classList.remove('editing');
-  el.editState.textContent='正式版：唯讀'; el.editState.className='state-gray'; el.editState.disabled=true; el.acceptRevisionBtn.textContent='建立新版本';
-  el.exportRevisionBtn.disabled=true; el.acceptRevisionBtn.disabled=true; el.newRevisionBtn.disabled=false;
-  el.revisionPanel.classList.remove('show','conflict');
+  el.revisionPanel.classList.remove('show');
   el.versionLabel.textContent=v+(v===latestVersion()?' · Current':'');
   el.cardTitle.textContent=v+'｜版本摘要'; el.cardSummary.textContent=data.summary;
   el.compareBadge.textContent=data.previous?'比較基準：'+data.previous:'第一版';
@@ -84,5 +68,6 @@ export async function renderVersion(v) {
   el.detailList.innerHTML=''; data.details.forEach(x=>{const li=document.createElement('li');li.textContent=x;el.detailList.appendChild(li);});
   el.versionHash.textContent='SHA-256：'+(await ensureHash(v));
   renderAiSummary(data);
-  applyCleanState(); applyUIHighlights(v); buildVersionMenu();
+  renderPublishState(v);
+  applyCleanState(); buildVersionMenu(); renderEditBar();
 }

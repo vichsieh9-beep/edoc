@@ -154,7 +154,7 @@ test.describe('P0 diff correctness', () => {
     expect(leftovers).toBe(0);
     await expect(page.locator('#revisionSummary')).toHaveText('未偵測到內容變更');
 
-    await page.locator('#acceptRevisionBtn').click();
+    await page.locator('#finishRevisionBtn').click();
     await expect.poll(() => dialogs.at(-1)).toBe('沒有偵測到內容變更，因此不建立新版本。');
     expect((await versionKeys(page)).at(-1)).toBe('v0.7');
   });

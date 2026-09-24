@@ -8,39 +8,47 @@
 {{style}}</style>
 </head>
 <body>
-<div class="toolbar" id="toolbar">
-  <div class="title">{{title}}</div><span class="engine-badge">EDoc Engine {{engineVersion}} · Publish Ready</span>
-
-  <div class="version-control" id="versionControl">
-    <button class="version-button" id="versionButton">
-      <span id="versionLabel">{{latestVersion}} · Current</span><span class="caret">▼</span>
-    </button>
-    <div class="version-menu" id="versionMenu"></div>
+<header class="doc-head" id="docHead">
+  <div class="doc-title">{{title}}</div>
+  <div class="read-bar">
+    <div class="version-control" id="versionControl">
+      <button class="version-button" id="versionButton">
+        <span id="versionLabel">{{latestVersion}} · Current</span><span class="caret">▼</span>
+      </button>
+      <div class="version-menu" id="versionMenu"></div>
+    </div>
+    <button id="toggleChanges" class="toggle on">顯示變更：開</button>
   </div>
-
-  <button id="toggleChanges" class="state-blue">顯示變更：開</button>
-  <button id="editState" class="state-gray" disabled>正式版：唯讀</button>
-  <button id="newRevisionBtn" class="revision-button">開始修訂</button>
-  <button id="editorBtn" title="選填；只需設定一次，會保存在這台瀏覽器">編輯者：未設定</button>
-  <span id="publishStatus" class="publish-status local">Local</span>
-  <button id="shareUrlBtn" class="share-button" disabled>複製公開網址</button>
-  <button id="copyBtn">複製全文</button>
-  <button id="exportReviewBtn" class="action-cyan">匯出審閱版</button>
-  <button id="exportRevisionBtn" class="action-purple" disabled>匯出修訂包</button>
-  <button id="importRevisionBtn" class="action-orange">匯入修訂</button>
-  <input id="importFile" class="hidden-input" type="file" accept=".json,.html,text/html,application/json">
-  <button id="acceptRevisionBtn" class="action-accept" disabled>建立新版本</button>
-  <button id="printBtn" onclick="window.print()">列印 / PDF</button>
-</div>
+  <div class="bar-row solo" id="barRow">
+    <div class="group edit-group" id="editGroup" hidden>
+      <span class="chip who" id="whoChip"></span>
+      <span class="chip state" id="stateChip">正式版・唯讀</span>
+      <button id="newRevisionBtn" class="primary">開始修訂</button>
+      <button id="finishRevisionBtn" class="primary" hidden>完成修訂-版本更新</button>
+      <button id="discardRevisionBtn" hidden>放棄修訂</button>
+    </div>
+    <div class="group share-group">
+      <button id="shareUrlBtn" disabled>複製公開網址</button>
+      <button id="copyBtn">複製全文</button>
+      <a id="pdfBtn" class="button" href="#" download>下載 PDF</a>
+    </div>
+  </div>
+</header>
 
 <main class="wrap">
+  <div class="notice" id="notice" hidden>
+    <span id="noticeText"></span><span class="notice-actions" id="noticeActions"></span>
+  </div>
+
   <section class="version-card" id="versionCard">
     <div class="version-card-head">
       <span class="version-card-title" id="cardTitle"></span>
       <span class="badge" id="compareBadge"></span>
       <span class="badge" id="statusBadge"></span>
+      <span class="badge publish" id="publishBadge" hidden></span>
     </div>
     <div class="version-card-summary" id="cardSummary"></div>
+    <div class="publish-note" id="publishNote" hidden></div>
     <div class="hash-text" id="versionHash"></div>
     <details id="changeDetails">
       <summary>詳細變更</summary>
@@ -50,36 +58,30 @@
 
   <section class="revision-panel" id="revisionPanel">
     <div class="revision-head">
-      <span class="revision-title" id="revisionTitle"></span>
+      <span class="revision-title">Draft</span>
       <span class="badge" id="revisionBase"></span>
-      <span class="badge" id="revisionStatus"></span>
     </div>
     <div class="revision-summary" id="revisionSummary"></div>
     <div class="revision-meta" id="revisionMeta"></div>
     <div class="hash-text" id="revisionHash"></div>
-    <div class="revision-conflict" id="revisionConflict">此修訂不是基於目前最新版，需人工合併後才能接受為新版本。</div>
   </section>
 
   <div id="doc" class="doc" contenteditable="false" spellcheck="false"></div>
 
   <div class="legend">
-    <span class="dot blue"></span>藍色＝此版本／修訂相較基準新增或修改　
-    <span class="dot red"></span>紅色刪除線＝相較基準刪除
-    <div class="hint" style="margin-top:8px">正式版本永久唯讀。按「開始修訂」即可直接編輯；建立新版本時系統會自動比對 Base Version、產生 Diff、版本摘要與 Changelog。編輯者為選填，匯入舊基準修訂時會提示衝突。</div>
+    <span class="dot blue"></span>藍色＝本版新增或修改
+    <span class="dot red"></span>紅色刪除線＝本版刪除
+    <div class="hint">正式版本永久唯讀。有編輯權限的人按「開始修訂」即可直接修改；按「完成修訂-版本更新」後，系統會自動比對、產生摘要並發布新版本。</div>
   </div>
+  <footer class="engine-foot">EDoc {{engineVersion}}</footer>
 </main>
 
-
-<div class="editor-backdrop" id="editorBackdrop">
-  <div class="editor-dialog">
-    <h3>設定編輯者</h3>
-    <input id="editorNameInput" type="text" placeholder="例如：Vic、客戶法務、PM">
-    <div class="hint">選填，只需設定一次；會儲存在這台瀏覽器。</div>
-    <div class="editor-actions">
-      <button id="clearEditorBtn">清除</button>
-      <button id="cancelEditorBtn">取消</button>
-      <button id="saveEditorBtn" class="state-blue">儲存</button>
-    </div>
+<div class="modal-backdrop" id="dialog">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <h3 id="dialogTitle"></h3>
+    <div class="dialog-summary" id="dialogSummary"></div>
+    <div class="dialog-note" id="dialogNote"></div>
+    <div class="modal-actions" id="dialogActions"></div>
   </div>
 </div>
 

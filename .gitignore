@@ -2,7 +2,12 @@ node_modules/
 test-results/
 playwright-report/
 _site/
+# Build output (CI builds before deploying)
+/index.html
+/documents/*/index.html
+/documents/*/pdf/
 .DS_Store
 
 # Proposal pages for V (local only, never published)
 /20??-??-??_*.html
+/20??-??-??_*.pdf

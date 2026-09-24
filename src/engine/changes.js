@@ -1,11 +1,10 @@
 // Plain-language change list of a formal version, read from its stored diff html.
 // This is what an AI reads to write the semantic summary.
-import { BLOCK_SELECTOR, ownedTextNodes, normalizeWs } from './dom.js';
+import { BLOCK_SELECTOR, ownedTextNodes, normalizeWs, inertContainer } from './dom.js';
 import { sectionNameFor } from './diff.js';
 
 export function listChanges(formalHtml) {
-  const wrap=document.createElement('div');
-  wrap.innerHTML=formalHtml;
+  const wrap=inertContainer(formalHtml);
   const marked=el=>el.classList.contains('changed')||el.classList.contains('deleted');
   const out=[];
   wrap.querySelectorAll(BLOCK_SELECTOR).forEach(block=>{

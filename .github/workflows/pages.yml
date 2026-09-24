@@ -18,21 +18,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # A version published from the web page only changes documents/*/document.json:
+      # skip the engine tests so the public page updates within a few minutes.
+      - name: What changed
+        id: scope
+        run: |
+          code=true
+          before='${{ github.event.before }}'
+          if [ "${{ github.event_name }}" = "push" ] && [ -n "$before" ] && ! echo "$before" | grep -q '^0*$'; then
+            if ! git diff --name-only "$before" "${{ github.sha }}" | grep -qvE '^documents/[^/]+/document\.json$'; then
+              code=false
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Engine tests needed: $code"
       - name: Setup Node
-        uses: actions/setup-node@v4
+        if: steps.scope.outputs.code == 'true'
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - name: Built files match sources
-        run: npm run build -- --check
-      - run: npx playwright install --with-deps chromium webkit
-      - name: Diff regression tests
+      - if: steps.scope.outputs.code == 'true'
+        run: npm ci
+      - if: steps.scope.outputs.code == 'true'
+        run: npx playwright install --with-deps chromium webkit
+      - name: Tests (build, Chromium, WebKit)
+        if: steps.scope.outputs.code == 'true'
         run: npx playwright test
       - name: Upload test report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report/
@@ -52,18 +70,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Chinese fonts for the PDFs
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - run: npx playwright install --with-deps chromium
+      - name: Build site and official PDFs
+        run: npm run pdf
       - name: Assemble site (published files only)
         run: |
           mkdir -p _site
-          cp -R index.html .nojekyll documents _site/
-          find _site -name document.json -delete
+          cp index.html .nojekyll _site/
+          for dir in documents/*/; do
+            mkdir -p "_site/$dir"
+            cp "$dir/index.html" "_site/$dir"
+            if [ -d "$dir/pdf" ]; then cp -R "$dir/pdf" "_site/$dir"; fi
+          done
+          find _site -type f | sort
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ENGINE_VERSION } from '../../src/engine/meta.js';
+import { versionOrder } from '../../src/engine/version.js';
 
 export const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -43,14 +44,22 @@ export async function loadTemplates() {
   return { document: await read('templates/document.html'), library: await read('templates/library.html'), style: await read('src/ui/styles.css') };
 }
 
-export function renderDocument(doc, { templates, script }) {
-  const { documentId, title, reviewFileName, latestVersion, nextRevisionIndex, versions } = doc;
+// edoc.config.json; EDOC_PUBLISH_API overrides the publish API (tests use a fake one).
+export async function loadConfig() {
+  const config = JSON.parse(await readFile(join(ROOT, 'edoc.config.json'), 'utf8'));
+  const publishApi = process.env.EDOC_PUBLISH_API ?? config.publishApi ?? '';
+  return { ...config, publishApi: publishApi.replace(/\/+$/, '') };
+}
+
+export function renderDocument(doc, { templates, script, slug, config = {} }) {
+  const { documentId, title, latestVersion, nextRevisionIndex, versions } = doc;
   return fill(templates.document, {
     title: escapeHtml(title),
     latestVersion: escapeHtml(latestVersion),
     engineVersion: ENGINE_VERSION,
     style: templates.style,
-    documentMeta: embedJson({ title, reviewFileName }),
+    // pdfVersions: every formal version gets a PDF when the site is deployed (npm run pdf).
+    documentMeta: embedJson({ title, slug, publishApi: config.publishApi || '', pdfVersions: versionOrder(versions) }),
     versionData: embedJson(versions),
     documentState: embedJson({ documentId, latestVersion, nextRevisionIndex }),
     revisionData: embedJson([]),
@@ -83,10 +92,10 @@ export async function loadDocuments() {
   return entries;
 }
 
-/** Render every output file. With check=true nothing is written; returns files whose content differs. */
-export async function buildSite({ check = false } = {}) {
-  const [templates, script, entries] = await Promise.all([loadTemplates(), bundleRuntime(), loadDocuments()]);
-  const outputs = entries.map(({ slug, doc }) => [join('documents', slug, 'index.html'), renderDocument(doc, { templates, script })]);
+/** Render every output file (build output is not committed; CI builds before deploying). */
+export async function buildSite() {
+  const [templates, script, entries, config] = await Promise.all([loadTemplates(), bundleRuntime(), loadDocuments(), loadConfig()]);
+  const outputs = entries.map(({ slug, doc }) => [join('documents', slug, 'index.html'), renderDocument(doc, { templates, script, slug, config })]);
   outputs.push(['index.html', renderLibrary(entries, { templates })]);
   const changed = [];
   for (const [rel, html] of outputs) {
@@ -94,7 +103,7 @@ export async function buildSite({ check = false } = {}) {
     const current = existsSync(file) ? await readFile(file, 'utf8') : null;
     if (current === html) continue;
     changed.push(rel);
-    if (!check) await writeFile(file, html);
+    await writeFile(file, html);
   }
   return { outputs: outputs.map(([rel]) => rel), changed };
 }

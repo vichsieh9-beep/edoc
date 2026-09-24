@@ -7,6 +7,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { relative } from 'node:path';
 import { buildSite, loadDocuments, ROOT } from './lib/site.mjs';
 import { readVersionFacts, formatPacket, applyAiSummary } from './lib/changelog.mjs';
+import { ensureUpToDate } from './lib/git.mjs';
 
 const args = process.argv.slice(2);
 const option = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
@@ -42,6 +43,7 @@ try {
     console.log(formatPacket(entry.doc, facts));
     process.exit(0);
   }
+  ensureUpToDate(ROOT); // versions may have been published from the web since the last pull
   const input = JSON.parse(await readFile(applyFile, 'utf8'));
   const doc = applyAiSummary(entry.doc, version, input, { hash: facts.hash, force });
   await writeFile(entry.file, JSON.stringify(doc, null, 2) + '\n');

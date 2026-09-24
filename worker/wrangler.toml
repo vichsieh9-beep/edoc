@@ -1,0 +1,10 @@
+# EDoc publish API. Deploy from this folder: npx wrangler deploy
+# Secret (set once, never committed): npx wrangler secret put GITHUB_TOKEN
+name = "edoc-publish"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+GITHUB_REPO = "vichsieh9-beep/edoc"
+GITHUB_BRANCH = "main"
+ALLOWED_ORIGIN = "https://vichsieh9-beep.github.io"

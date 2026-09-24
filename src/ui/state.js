@@ -1,4 +1,4 @@
-// Document data embedded in the page. syncEmbeddedState() writes it back before an export.
+// Document data embedded in the page, plus what this browser is doing with it.
 import { snapshotHash } from '../engine/hash.js';
 
 function readJson(id, fallback) {
@@ -7,7 +7,7 @@ function readJson(id, fallback) {
 }
 
 export const state={
-  meta: readJson('documentMeta','{}'),
+  meta: readJson('documentMeta','{}'),      // title, slug, publishApi, pdfVersions
   versions: readJson('versionData'),
   docState: readJson('documentState'),
   revisions: readJson('revisionData','[]'),
@@ -15,6 +15,9 @@ export const state={
   activeRevision: null,
   clean: false,
   suppressObserver: false,
+  session: null,        // { token, name } when this browser holds a valid edit link
+  linkProblem: null,    // message when an edit link was rejected
+  publishing: null,     // { version, status: 'publishing' | 'live' | 'timeout', since }
 };
 state.activeVersion=state.docState.latestVersion;
 

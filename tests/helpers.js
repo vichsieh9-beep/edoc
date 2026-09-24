@@ -1,23 +1,35 @@
-import { expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { enablePublishing, PUBLISH_API } from './publish-mock.js';
+import { TEST_TOKEN, TEST_NAME } from './fake-github.js';
+
+export { TEST_TOKEN, TEST_NAME };
 
 // Relative to baseURL so the tests also run against the live site under /edoc/.
 export const DOC_URL = 'documents/qa-senior-game-qa/';
 
 // Colors from the document's CSS variables (--changed / --deleted / --text).
-const BLUE = 'rgb(74, 163, 255)';
-const RED = 'rgb(255, 107, 107)';
-const WHITE = 'rgb(242, 242, 242)';
+const BLUE = 'rgb(29, 78, 216)';
+const RED = 'rgb(185, 28, 28)';
+const PLAIN = 'rgb(31, 31, 31)';
 
-/** Open the QA document on v0.7 and wait until hashes are computed. Returns collected dialog messages. */
-export async function openDoc(page) {
+/**
+ * Open the QA document on v0.7 and wait until hashes are computed.
+ * With edit (default) the page is opened through an edit link and publishing goes to the
+ * real Worker code backed by a fake GitHub (dialogs.gh). Returns collected dialog messages.
+ */
+export async function openDoc(page, { edit = true, gh } = {}) {
+  if (edit) test.skip(!PUBLISH_API, 'no publish API configured for this site');
   const dialogs = [];
   page.on('dialog', (d) => {
     dialogs.push(d.message());
     d.accept();
   });
-  await page.goto(DOC_URL);
+  await page.addInitScript(() => { window.__EDOC_POLL_MS = 100; });
+  dialogs.gh = edit ? await enablePublishing(page, { gh }) : null;
+  await page.goto(DOC_URL + (edit ? `#edit=${TEST_TOKEN}` : ''));
   await expect(page.locator('#versionLabel')).toHaveText('v0.7 · Current');
   await expect(page.locator('#versionHash')).toHaveText(/SHA-256：[0-9a-f]{64}/);
+  if (edit) await expect(page.locator('#whoChip')).toHaveText('可編輯・' + TEST_NAME);
   return dialogs;
 }
 
@@ -27,8 +39,10 @@ export async function startRevision(page) {
   await expect(page.locator('#versionLabel')).toHaveText(/^Draft · Base v\d+\.\d+$/);
 }
 
+/** 完成修訂-版本更新 → 發布, then wait until the page shows the new version. */
 export async function acceptRevision(page, expectedVersion) {
-  await page.locator('#acceptRevisionBtn').click();
+  await page.locator('#finishRevisionBtn').click();
+  await page.locator('#dialogActions button.primary').click();
   await expect(page.locator('#versionLabel')).toHaveText(`${expectedVersion} · Current`);
 }
 
@@ -102,12 +116,12 @@ export async function selectText(page, needle) {
  * - blue / red: concatenated text rendered as added / deleted
  * - oldText: everything that is not blue (what the previous version said)
  * - newText: everything that is not red (what this version says)
- * - otherColors: any color other than white/blue/red (e.g. leaked inline styles)
+ * - otherColors: any color other than the text color/blue/red (e.g. leaked inline styles)
  * Whitespace is stripped so comparisons are about content, not formatting.
  */
 export async function renderedDiff(page) {
   return page.evaluate(
-    ([BLUE, RED, WHITE]) => {
+    ([BLUE, RED, PLAIN]) => {
       const doc = document.getElementById('doc');
       const out = { blue: '', red: '', oldText: '', newText: '', otherColors: [] };
       const w = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT);
@@ -120,13 +134,13 @@ export async function renderedDiff(page) {
         const color = getComputedStyle(el).color;
         if (color === BLUE) out.blue += t;
         else if (color === RED) out.red += t;
-        else if (color !== WHITE) out.otherColors.push(color);
+        else if (color !== PLAIN) out.otherColors.push(color);
         if (color !== BLUE) out.oldText += t;
         if (color !== RED) out.newText += t;
       }
       return out;
     },
-    [BLUE, RED, WHITE],
+    [BLUE, RED, PLAIN],
   );
 }
 
