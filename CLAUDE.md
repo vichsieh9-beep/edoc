@@ -15,6 +15,11 @@ Do not add mandatory revision metadata forms.
 Formal versions are immutable/read-only.
 Editing always occurs in Draft / Revision.
 
+Since 2026-09-24 (engine R2.7) editing happens on the public page: holders of an edit link
+(`#edit=<token>`, name bound to the link) publish new versions through the Worker in `worker/`;
+the plain URL is read-only. There is no offline editing, export or import any more; the
+official output is the system-generated A4 PDF of each version.
+
 ## Current priority
 
 1. Publish current site to GitHub Pages.
@@ -72,12 +77,16 @@ Never expose a GitHub PAT/token in client-side code.
 ## Source layout
 
 Edit `src/`, `templates/` or `documents/<slug>/document.json`, then run `npm run build`.
-`documents/*/index.html` and `index.html` are build output — never edit them by hand
-(CI fails when they do not match the sources). The build must keep producing one
-self-contained HTML per document.
+`documents/*/index.html`, `index.html` and `documents/*/pdf/` are build output: not committed,
+never edited by hand; CI builds them (and the PDFs) before every deploy. The build must keep
+producing one self-contained HTML per document.
 
-Versions created in the browser come back into `document.json` with
-`npm run ingest -- <exported review .html>`.
+Versions published from the web page are committed straight to `document.json` on GitHub by
+the Worker, so always `git pull` before changing anything locally (`changelog` and `edit-link`
+refuse to write when the local branch is behind).
+
+Edit links: `npm run edit-link -- new --name <名字>` (the link is printed once; `edit-links.json`
+stores only its hash), `list`, `revoke <id>`. Vic should run `new`: whoever runs it sees the link.
 
 Golden tests (`tests/__golden__/`) lock version hashes and exact diff output.
 Update them only for an intended engine behavior change.
