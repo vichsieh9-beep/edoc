@@ -30,12 +30,15 @@ try {
     else if (docArg) {
       if (!entries.some((e) => e.slug === docArg)) throw new Error(`找不到文件 ${docArg}`);
       documents = [docArg];
-    } else if (entries.length === 1) documents = [entries[0].slug];
-    else throw new Error('有多份文件，請用 --doc <slug> 或 --doc all 指定');
+    } else {
+      const listed = entries.filter((e) => !e.doc.unlisted);
+      if (listed.length !== 1) throw new Error('有多份文件，請用 --doc <slug> 或 --doc all 指定');
+      documents = [listed[0].slug];
+    }
     const { registry: next, link, token } = createLink(registry, { name: option('--name'), documents });
     await writeFile(FILE, JSON.stringify(next, null, 2) + '\n');
     const { siteUrl } = await loadConfig();
-    const slugs = documents[0] === '*' ? entries.map((e) => e.slug) : documents;
+    const slugs = documents[0] === '*' ? entries.filter((e) => !e.doc.unlisted).map((e) => e.slug) : documents;
     console.log(`已建立編輯連結 ${link.id}（${link.name}）。這條連結只會顯示這一次，請直接用 LINE 傳給對方：\n`);
     for (const slug of slugs) console.log('  ' + editUrl(siteUrl, slug, token));
     console.log('\nedit-links.json 只存雜湊，不含連結本身；推上 GitHub 後連結才會生效。');

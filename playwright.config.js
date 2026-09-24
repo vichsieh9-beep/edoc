@@ -28,6 +28,6 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     // Engine, golden and tooling tests (worker, edit links, changelog, PDF) need one browser only.
-    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: /(engine|golden|changelog|worker|edit-link|pdf)\.spec/ },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: /(engine|golden|changelog|worker|edit-link|pdf|site)\.spec/ },
   ],
 });

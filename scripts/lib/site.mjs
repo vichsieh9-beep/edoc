@@ -69,6 +69,7 @@ export function renderDocument(doc, { templates, script, slug, config = {} }) {
 
 export function renderLibrary(entries, { templates }) {
   const cards = entries
+    .filter(({ doc }) => !doc.unlisted) // e.g. the sandbox used for live publishing tests
     .map(({ slug, doc }) => `<a class="card" href="./documents/${slug}/">
   <div class="row">
     <span class="title">${escapeHtml(doc.title)}</span>

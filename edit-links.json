@@ -1,3 +1,14 @@
 {
-  "links": []
+  "links": [
+    {
+      "id": "L81a1b0",
+      "name": "CC 上線實測",
+      "documents": [
+        "edoc-sandbox"
+      ],
+      "tokenHash": "887115a3801b9c196914e8fdad54c7fd6678c3cf5afd90c51b2d9c55f4ad49c8",
+      "createdAt": "2026-09-24T08:24:19.809Z",
+      "revoked": false
+    }
+  ]
 }

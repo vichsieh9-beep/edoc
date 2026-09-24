@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ROOT, bundleRuntime, loadTemplates, renderDocument } from '../scripts/lib/site.mjs';
 import { createFakeGithub, repoDocument, testLinks } from './fake-github.js';
-import { enablePublishing } from './publish-mock.js';
+import { enablePublishing, PUBLISH_API } from './publish-mock.js';
 import { openDoc, startRevision, acceptRevision, placeCaret, renderedDiff, TEST_TOKEN, TEST_NAME, DOC_URL } from './helpers.js';
 
 async function editAndPublish(page) {
@@ -55,6 +55,7 @@ test('edit link: name comes from the link, token leaves the address bar and is r
 });
 
 test('revoked edit link: view-only with an explanation, and the token is forgotten', async ({ page }) => {
+  test.skip(!PUBLISH_API, 'no publish API configured for this site');
   const links = testLinks();
   links.links[0].revoked = true;
   const gh = createFakeGithub({ links });

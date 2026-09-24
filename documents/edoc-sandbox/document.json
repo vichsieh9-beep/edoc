@@ -1,0 +1,20 @@
+{
+  "documentId": "edoc-sandbox",
+  "title": "EDoc 測試文件",
+  "subtitle": "上線實測用，不列在文件庫",
+  "unlisted": true,
+  "latestVersion": "v0.1",
+  "nextRevisionIndex": 1,
+  "versions": {
+    "v0.1": {
+      "summary": "建立測試文件。",
+      "details": [
+        "用於實測網頁上的修訂與發布流程，不是正式文件。"
+      ],
+      "previous": null,
+      "html": "<h1>EDoc 測試文件</h1>\n<h2>【說明】</h2>\n<ul>\n<li>這份文件只用來測試網頁上的修訂與發布，不是正式文件。</li>\n<li>修改這一行來測試發布。</li>\n</ul>",
+      "uiChanges": [],
+      "aiSummary": null
+    }
+  }
+}
