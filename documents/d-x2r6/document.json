@@ -1,0 +1,21 @@
+{
+  "documentId": "d-x2r6",
+  "title": "資深美術",
+  "subtitle": "",
+  "latestVersion": "v0.1",
+  "nextRevisionIndex": 1,
+  "versions": {
+    "v0.1": {
+      "summary": "建立文件：空白文件",
+      "details": [
+        "建立方式：空白文件",
+        "編輯者：Vic",
+        "建立時間：2026-09-29T09:15:24.289Z"
+      ],
+      "previous": null,
+      "html": "<h1>資深美術</h1>",
+      "uiChanges": [],
+      "aiSummary": null
+    }
+  }
+}
