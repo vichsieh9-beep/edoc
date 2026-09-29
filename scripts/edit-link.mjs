@@ -1,11 +1,12 @@
 // Manage edit links (who may publish new versions from the web page).
 //   npm run edit-link -- new --name 客戶法務 [--doc <slug>|all]   create a link (shown once)
+//   npm run edit-link -- new --name Vic --admin                   admin link: manage the library from the web
 //   npm run edit-link -- list                                       list links
 //   npm run edit-link -- revoke <id>                                disable a link
 // Changes to edit-links.json take effect after they are pushed to GitHub.
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createLink, revokeLink, editUrl } from './lib/edit-links.mjs';
+import { createLink, revokeLink, editUrl, adminUrl } from './lib/edit-links.mjs';
 import { ensureUpToDate } from './lib/git.mjs';
 import { ROOT, loadConfig, loadDocuments } from './lib/site.mjs';
 
@@ -19,8 +20,18 @@ try {
   if (command === 'list') {
     if (!registry.links.length) console.log('目前沒有編輯連結。');
     for (const l of registry.links) {
-      console.log(`${l.id}  ${l.name}  文件：${l.documents.join(', ')}  建立：${l.createdAt.slice(0, 10)}  ${l.revoked ? '已停用' : '有效'}`);
+      const scope = l.role === 'admin' ? '管理員（全部文件）' : `文件：${l.documents.join(', ')}`;
+      console.log(`${l.id}  ${l.name}  ${scope}  建立：${l.createdAt.slice(0, 10)}  ${l.revoked ? '已停用' : '有效'}`);
     }
+  } else if (command === 'new' && args.includes('--admin')) {
+    ensureUpToDate(ROOT);
+    const { registry: next, link, token } = createLink(registry, { name: option('--name'), admin: true });
+    await writeFile(FILE, JSON.stringify(next, null, 2) + '\n');
+    const { siteUrl } = await loadConfig();
+    console.log(`已建立管理員連結 ${link.id}（${link.name}）。這條連結只會顯示這一次，請自己保存，不要傳給別人：\n`);
+    console.log('  ' + adminUrl(siteUrl, token));
+    console.log('\n用它打開文件庫就能新增、改名、封存文件，並替別人產生編輯連結；它也能修改每一份文件。');
+    console.log('edit-links.json 只存雜湊，不含連結本身；推上 GitHub 後連結才會生效。');
   } else if (command === 'new') {
     ensureUpToDate(ROOT);
     const entries = await loadDocuments();
@@ -31,14 +42,14 @@ try {
       if (!entries.some((e) => e.slug === docArg)) throw new Error(`找不到文件 ${docArg}`);
       documents = [docArg];
     } else {
-      const listed = entries.filter((e) => !e.doc.unlisted);
+      const listed = entries.filter((e) => !e.doc.unlisted && !e.doc.archived);
       if (listed.length !== 1) throw new Error('有多份文件，請用 --doc <slug> 或 --doc all 指定');
       documents = [listed[0].slug];
     }
     const { registry: next, link, token } = createLink(registry, { name: option('--name'), documents });
     await writeFile(FILE, JSON.stringify(next, null, 2) + '\n');
     const { siteUrl } = await loadConfig();
-    const slugs = documents[0] === '*' ? entries.filter((e) => !e.doc.unlisted).map((e) => e.slug) : documents;
+    const slugs = documents[0] === '*' ? entries.filter((e) => !e.doc.unlisted && !e.doc.archived).map((e) => e.slug) : documents;
     console.log(`已建立編輯連結 ${link.id}（${link.name}）。這條連結只會顯示這一次，請直接用 LINE 傳給對方：\n`);
     for (const slug of slugs) console.log('  ' + editUrl(siteUrl, slug, token));
     console.log('\nedit-links.json 只存雜湊，不含連結本身；推上 GitHub 後連結才會生效。');
@@ -48,7 +59,7 @@ try {
     await writeFile(FILE, JSON.stringify(next, null, 2) + '\n');
     console.log(`已停用 ${args[1]}；推上 GitHub 後生效，舊連結就不能再發布。`);
   } else {
-    console.log('用法：npm run edit-link -- new --name <名字> [--doc <slug>|all]｜list｜revoke <id>');
+    console.log('用法：npm run edit-link -- new --name <名字> [--doc <slug>|all|--admin]｜list｜revoke <id>');
     process.exit(command ? 1 : 0);
   }
 } catch (e) {

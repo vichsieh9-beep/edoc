@@ -1,18 +1,21 @@
 // Builds the static site: each documents/<slug>/document.json → documents/<slug>/index.html
 // (one self-contained file: CSS, data and the bundled engine inline) plus the Library index.html.
+// Archived documents get a short "已封存" page instead of their content.
 import { build } from 'esbuild';
+import { execFileSync } from 'node:child_process';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ENGINE_VERSION } from '../../src/engine/meta.js';
 import { versionOrder } from '../../src/engine/version.js';
+import { rowsHtml } from '../../src/library/rows.js';
 
 export const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
-export async function bundleRuntime() {
+export async function bundleRuntime(entry = 'src/main.js') {
   const result = await build({
-    entryPoints: [join(ROOT, 'src/main.js')],
+    entryPoints: [join(ROOT, entry)],
     bundle: true,
     format: 'iife',
     target: 'es2020',
@@ -41,7 +44,32 @@ function fill(template, values) {
 
 export async function loadTemplates() {
   const read = (p) => readFile(join(ROOT, p), 'utf8');
-  return { document: await read('templates/document.html'), library: await read('templates/library.html'), style: await read('src/ui/styles.css') };
+  return {
+    document: await read('templates/document.html'),
+    archived: await read('templates/archived.html'),
+    library: await read('templates/library.html'),
+    style: await read('src/ui/styles.css'),
+    libraryStyle: await read('src/library/styles.css'),
+  };
+}
+
+// Dates on the site are Taipei dates, whatever machine builds it.
+export function taipeiDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+/** Last update shown in the Library: the latest version's time and editor when it records them. */
+export function updatedInfo(doc, fallbackIso = null) {
+  const details = doc.versions?.[doc.latestVersion]?.details || [];
+  const find = (prefix) => {
+    const line = details.find((d) => typeof d === 'string' && d.startsWith(prefix));
+    return line ? line.slice(prefix.length).trim() : null;
+  };
+  const date = taipeiDate(find('建立時間：') || fallbackIso);
+  return date ? { date, by: find('編輯者：') } : null;
 }
 
 // edoc.config.json; EDOC_PUBLISH_API overrides the publish API (tests use a fake one).
@@ -67,19 +95,37 @@ export function renderDocument(doc, { templates, script, slug, config = {} }) {
   });
 }
 
-export function renderLibrary(entries, { templates }) {
-  const cards = entries
+export function renderArchived(doc, { templates }) {
+  return fill(templates.archived, {
+    title: escapeHtml(doc.title),
+    archivedDate: escapeHtml(taipeiDate(doc.archived.at) || ''),
+    style: templates.style,
+  });
+}
+
+/** What the Library page knows about each document (never the content itself). */
+export function libraryEntries(entries) {
+  return entries
     .filter(({ doc }) => !doc.unlisted) // e.g. the sandbox used for live publishing tests
-    .map(({ slug, doc }) => `<a class="card" href="./documents/${slug}/">
-  <div class="row">
-    <span class="title">${escapeHtml(doc.title)}</span>
-    <span class="badge">${escapeHtml(doc.latestVersion)} Current</span>
-  </div>
-  <div class="meta">${escapeHtml(doc.subtitle)}</div>
-</a>
-`)
-    .join('');
-  return fill(templates.library, { cards });
+    .map(({ slug, doc, updated }) => ({
+      slug,
+      title: doc.title,
+      subtitle: doc.subtitle || '',
+      latestVersion: doc.latestVersion,
+      updated: updated === undefined ? updatedInfo(doc) : updated,
+      archived: doc.archived ? { date: taipeiDate(doc.archived.at), by: doc.archived.by || null } : null,
+    }))
+    .sort((a, b) => (b.updated?.date || '').localeCompare(a.updated?.date || '') || a.title.localeCompare(b.title));
+}
+
+export function renderLibrary(entries, { templates, script = '', config = {} }) {
+  const docs = libraryEntries(entries);
+  return fill(templates.library, {
+    style: templates.libraryStyle,
+    rows: rowsHtml(docs),
+    libraryData: embedJson({ publishApi: config.publishApi || '', docs }),
+    script,
+  });
 }
 
 export async function loadDocuments() {
@@ -88,16 +134,34 @@ export async function loadDocuments() {
   const entries = [];
   for (const slug of slugs) {
     const file = join(dir, slug, 'document.json');
-    if (existsSync(file)) entries.push({ slug, file, doc: JSON.parse(await readFile(file, 'utf8')) });
+    if (!existsSync(file)) continue;
+    const doc = JSON.parse(await readFile(file, 'utf8'));
+    // Versions made before R2.7 record no time: fall back to the commit that introduced the version.
+    entries.push({ slug, file, doc, updated: updatedInfo(doc, versionCommitTime(file, doc.latestVersion)) });
   }
   return entries;
 }
 
+function versionCommitTime(file, version) {
+  try {
+    const out = execFileSync('git', ['log', '--format=%cI', `-S"latestVersion": "${version}"`, '--', file],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.trim().split('\n').pop() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Render every output file (build output is not committed; CI builds before deploying). */
 export async function buildSite() {
-  const [templates, script, entries, config] = await Promise.all([loadTemplates(), bundleRuntime(), loadDocuments(), loadConfig()]);
-  const outputs = entries.map(({ slug, doc }) => [join('documents', slug, 'index.html'), renderDocument(doc, { templates, script, slug, config })]);
-  outputs.push(['index.html', renderLibrary(entries, { templates })]);
+  const [templates, script, libraryScript, entries, config] = await Promise.all([
+    loadTemplates(), bundleRuntime(), bundleRuntime('src/library.js'), loadDocuments(), loadConfig(),
+  ]);
+  const outputs = entries.map(({ slug, doc }) => [
+    join('documents', slug, 'index.html'),
+    doc.archived ? renderArchived(doc, { templates }) : renderDocument(doc, { templates, script, slug, config }),
+  ]);
+  outputs.push(['index.html', renderLibrary(entries, { templates, script: libraryScript, config })]);
   const changed = [];
   for (const [rel, html] of outputs) {
     const file = join(ROOT, rel);

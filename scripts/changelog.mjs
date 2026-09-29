@@ -22,7 +22,7 @@ try {
 
   if (!version) {
     let pending = 0;
-    for (const entry of entries.filter((e) => !e.doc.unlisted)) {
+    for (const entry of entries.filter((e) => !e.doc.unlisted && !e.doc.archived)) {
       const keys = Object.keys(entry.doc.versions);
       const facts = await readVersionFacts(entry.slug, keys);
       for (const f of facts.filter((f) => f.machineSummary && !f.hasAiSummary)) {
@@ -34,9 +34,10 @@ try {
     process.exit(0);
   }
 
-  const listed = entries.filter((e) => !e.doc.unlisted);
+  const listed = entries.filter((e) => !e.doc.unlisted && !e.doc.archived);
   const entry = slug ? entries.find((e) => e.slug === slug) : listed.length === 1 ? listed[0] : null;
   if (!entry) throw new Error(slug ? `找不到文件 ${slug}` : '有多份文件，請用 --doc <slug> 指定');
+  if (entry.doc.archived) throw new Error(`${entry.slug} 已封存，要先在文件庫還原`);
   const [facts] = await readVersionFacts(entry.slug, [version]);
   if (facts.missing) throw new Error(`${entry.slug} 沒有版本 ${version}`);
 

@@ -1,18 +1,20 @@
 // Edit links: whoever opens documents/<slug>/#edit=<token> can publish new versions.
+// An admin link (role "admin", <site>/#edit=<token>) may edit every document and manage the library.
 // edit-links.json (committed) keeps only the SHA-256 of each token; the link is shown once.
 import { createHash, randomBytes } from 'node:crypto';
 
 export const sha256Hex = (text) => createHash('sha256').update(text).digest('hex');
 
-export function createLink(registry, { name, documents, now = new Date(), random = randomBytes }) {
+export function createLink(registry, { name, documents, admin = false, now = new Date(), random = randomBytes }) {
   const clean = String(name || '').trim();
   if (!clean || clean.length > 40 || /[\n\r]/.test(clean)) throw new Error('請用 --name 指定名字（40 字以內），例如 --name 客戶法務');
-  if (!Array.isArray(documents) || !documents.length) throw new Error('請指定文件');
+  if (!admin && (!Array.isArray(documents) || !documents.length)) throw new Error('請指定文件');
   const token = random(24).toString('base64url');
   const link = {
     id: 'L' + random(3).toString('hex'),
     name: clean,
-    documents,
+    ...(admin ? { role: 'admin' } : {}),
+    documents: admin ? ['*'] : documents,
     tokenHash: sha256Hex(token),
     createdAt: now.toISOString(),
     revoked: false,
@@ -28,3 +30,5 @@ export function revokeLink(registry, id) {
 }
 
 export const editUrl = (siteUrl, slug, token) => new URL(`documents/${slug}/#edit=${token}`, siteUrl).href;
+// An admin link opens the library, where documents and edit links are managed.
+export const adminUrl = (siteUrl, token) => new URL(`#edit=${token}`, siteUrl).href;

@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const TEST_TOKEN = 'edoc-test-token-0123456789abcdef';
 export const TEST_NAME = '客戶法務';
+export const ADMIN_TOKEN = 'edoc-admin-token-0123456789abcdef';
+export const ADMIN_NAME = 'Vic';
 const sha = (text) => createHash('sha1').update(text).digest('hex');
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -14,20 +16,28 @@ export function testLinks(extra = []) {
   return {
     links: [
       { id: 'Ltest', name: TEST_NAME, documents: ['qa-senior-game-qa'], tokenHash: createHash('sha256').update(TEST_TOKEN).digest('hex'), createdAt: '2026-09-24T00:00:00.000Z', revoked: false },
+      { id: 'Ladmin', name: ADMIN_NAME, role: 'admin', documents: ['*'], tokenHash: createHash('sha256').update(ADMIN_TOKEN).digest('hex'), createdAt: '2026-09-24T00:00:00.000Z', revoked: false },
       ...extra,
     ],
   };
 }
 export const repoDocument = () => JSON.parse(readFileSync(join(ROOT, 'documents/qa-senior-game-qa/document.json'), 'utf8'));
 
-export function createFakeGithub({ document = repoDocument(), links = testLinks() } = {}) {
+// `documents`: extra documents by slug; `history`: commit messages already on the branch this hour.
+export function createFakeGithub({ document = repoDocument(), links = testLinks(), documents = {}, history = [] } = {}) {
   const files = new Map();
   const put = (path, text) => files.set(path, { text, sha: sha(text) });
   put('documents/qa-senior-game-qa/document.json', JSON.stringify(document, null, 2) + '\n');
+  for (const [slug, doc] of Object.entries(documents)) put(`documents/${slug}/document.json`, JSON.stringify(doc, null, 2) + '\n');
   put('edit-links.json', JSON.stringify(links, null, 2) + '\n');
-  const commits = [];
+  const commits = history.map((message) => ({ path: 'documents', message }));
   async function fetchImpl(url, init = {}) {
-    const m = new URL(url).pathname.match(/^\/repos\/[^/]+\/[^/]+\/contents\/(.+)$/);
+    const u = new URL(url);
+    if (/^\/repos\/[^/]+\/[^/]+\/commits$/.test(u.pathname)) {
+      const path = u.searchParams.get('path') || '';
+      return json(200, commits.filter((c) => c.path.startsWith(path)).reverse().map((c) => ({ commit: { message: c.message } })));
+    }
+    const m = u.pathname.match(/^\/repos\/[^/]+\/[^/]+\/contents\/(.+)$/);
     if (!m) return json(404, { message: 'Not Found' });
     const path = m[1].split('/').map(decodeURIComponent).join('/');
     const file = files.get(path);
@@ -38,7 +48,9 @@ export function createFakeGithub({ document = repoDocument(), links = testLinks(
     }
     if (init.method === 'PUT') {
       const body = JSON.parse(init.body);
-      if (!file || body.sha !== file.sha) return json(409, { message: 'sha does not match' });
+      if (!file && body.sha) return json(404, { message: 'Not Found' });
+      if (file && !body.sha) return json(422, { message: 'sha wasn\'t supplied' });
+      if (file && body.sha !== file.sha) return json(409, { message: 'sha does not match' });
       put(path, Buffer.from(body.content, 'base64').toString('utf8'));
       commits.push({ path, message: body.message });
       return json(200, { commit: { sha: 'c' + commits.length } });
@@ -50,6 +62,8 @@ export function createFakeGithub({ document = repoDocument(), links = testLinks(
     commits,
     text: (path) => files.get(path).text,
     read: (path = 'documents/qa-senior-game-qa/document.json') => JSON.parse(files.get(path).text),
+    has: (path) => files.has(path),
+    paths: () => [...files.keys()],
     write: (path, value) => put(path, JSON.stringify(value, null, 2) + '\n'),
   };
 }

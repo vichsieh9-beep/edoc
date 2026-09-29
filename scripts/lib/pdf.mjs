@@ -1,5 +1,6 @@
 // Official A4 PDF of every formal version: documents/<slug>/pdf/<version>.pdf.
 // Generated when the site is deployed, so everyone downloads the same file.
+// Archived documents get none: their public page no longer shows the content.
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -50,7 +51,7 @@ export async function generatePdfs({ outDir, versions: only } = {}) {
   const written = [];
   const browser = await chromium.launch();
   try {
-    for (const { slug, doc } of entries) {
+    for (const { slug, doc } of entries.filter((e) => !e.doc.archived)) {
       // The built page provides the engine (clean snapshot, filtering, hashes).
       const page = await browser.newPage();
       await page.goto(pathToFileURL(join(ROOT, 'documents', slug, 'index.html')).href);
