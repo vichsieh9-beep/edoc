@@ -7,7 +7,8 @@ Human edits content. The system handles versioning.
 
 Anyone with the public URL can read every version and download its official A4 PDF.
 Holders of an **edit link** can revise the document on the page and publish the next version;
-LINE (or anything else) is only used to tell each other "done". Product rules and history are in
+LINE (or anything else) is only used to tell each other "done". The **admin link** opens the
+Library with management controls: new documents, rename, archive / restore, and edit links. Product rules and history are in
 `EDOC_HANDOFF.md`; working rules for AI agents are in `CLAUDE.md`.
 
 ## Layout
@@ -16,10 +17,11 @@ LINE (or anything else) is only used to tell each other "done". Product rules an
 documents/<slug>/document.json   content SSOT: every formal version (append-only)
 edit-links.json                  edit links (SHA-256 of each token only)
 edoc.config.json                 public site URL and publish API URL
-src/engine/                      diff, changes, ai-summary, revision (html filtering), text, hash, version, publish, meta (R2.x)
-src/ui/                          header, edit access, draft + publishing, version view, sharing, styles.css
-templates/                       HTML shells for documents and the Library
-worker/                          publish API (Cloudflare Worker) that appends versions on GitHub
+src/engine/                      diff, changes, ai-summary, revision (html filtering), import + docx (new documents), text, hash, version, publish, meta (R2.x)
+src/ui/                          document page: header, edit access, draft + publishing, version view, sharing, styles.css
+src/library.js, src/library/     Library page: rows, dialogs (new document, share), styles.css
+templates/                       HTML shells for documents, archived documents and the Library
+worker/                          publish API (Cloudflare Worker): appends versions, manages documents and edit links on GitHub
 scripts/                         build, pdf, changelog (AI summaries), edit-link, local server
 tests/                           Playwright: P0 diff cases, engine contract, golden output, features, worker, tools
 ```
@@ -44,10 +46,17 @@ Engine changes that reach `main` bump `ENGINE_VERSION` in `src/engine/meta.js` (
 
 ## Editing and publishing
 
-1. Create a link for a person: `npm run edit-link -- new --name 客戶法務` (shown once), push `edit-links.json`.
-2. They open the link, 開始修訂, edit, 完成修訂-版本更新 → 發布. The Worker appends the version to
+1. Once: `npm run edit-link -- new --name Vic --admin` prints the admin link (shown once), push
+   `edit-links.json`. Opening it shows the Library with 「＋ 新增文件」, 「分享」 and 「⋯」.
+2. Give a person an edit link: 分享 → name → 產生編輯連結 (shown once; send it by LINE). It works
+   right away. In the terminal: `npm run edit-link -- new --name 客戶法務 [--doc <slug>]`, push.
+3. They open the link, 開始修訂, edit, 完成修訂-版本更新 → 發布. The Worker appends the version to
    `document.json` on GitHub; CI rebuilds and redeploys (about 2–3 minutes), then the page shows ✓ 已上線.
-3. Stop a link: `npm run edit-link -- revoke <id>`, push.
+4. Stop a link: 分享 → 停用 (or `npm run edit-link -- revoke <id>`, push). Admin links: terminal only.
+
+New documents (空白、複製、貼上文字、上傳 Word) get the address `documents/d-xxxx/` and appear
+after the next deploy. Archived documents leave the Library and their page only says so; every
+version stays in `document.json` (and in the public git history).
 
 Drafts are saved in the editor's browser as they type. The Worker only appends the next version,
 checks the link and the version chain, and never edits older versions.
@@ -63,7 +72,7 @@ npm run changelog -- v0.8 --apply summary.json   # validate, store in document.j
 ## Deploy
 
 Pushing to `main` runs `.github/workflows/pages.yml`: tests (skipped when only `document.json`
-changed), then build, official PDFs, and deploy of the site files only.
+files or `edit-links.json` changed), then build, official PDFs, and deploy of the site files only.
 
 The publish API is deployed separately from `worker/` (`npx wrangler deploy`, secret `GITHUB_TOKEN`:
 a fine-grained token with Contents read/write on this repo only). Its URL goes into

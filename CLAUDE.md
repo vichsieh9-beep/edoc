@@ -20,6 +20,14 @@ Since 2026-09-24 (engine R2.7) editing happens on the public page: holders of an
 the plain URL is read-only. There is no offline editing, export or import any more; the
 official output is the system-generated A4 PDF of each version.
 
+Since 2026-09-29 (engine R2.8) the site is a library of documents. Vic's admin link
+(`<site>/#edit=<token>`, role `admin`) manages it from the Library page: create a document
+(blank, copy, pasted text or Word .docx converted in the browser), rename (name only: no new
+version, same address), archive / restore, and create or revoke per-document edit links.
+New documents get a generated address (`documents/d-xxxx/`). Archiving keeps every version;
+the page only says it is archived. There is no hard delete from the web: the repo is public,
+so archived content stays in git history anyway.
+
 ## Current priority
 
 1. Publish current site to GitHub Pages.
@@ -93,6 +101,9 @@ refuse to write when the local branch is behind).
 
 Edit links: `npm run edit-link -- new --name <名字>` (the link is printed once; `edit-links.json`
 stores only its hash), `list`, `revoke <id>`. Vic should run `new`: whoever runs it sees the link.
+The admin link comes from `npm run edit-link -- new --name Vic --admin` (terminal only, once);
+after that edit links are normally created on the Library page. Admin links can only be revoked
+in the terminal.
 
 Golden tests (`tests/__golden__/`) lock version hashes and exact diff output.
 Update them only for an intended engine behavior change.
