@@ -74,6 +74,12 @@ Document URL:
 
 Never expose a GitHub PAT/token in client-side code.
 
+## Project board
+
+Trello: https://trello.com/b/RRBl2OX8/edoc (workspace `01_V's`).
+Track decisions, releases (one 🚀 card per engine version) and deliverables there;
+card references follow RULES.md §4.2. The board is a progress log, not the SSOT.
+
 ## Source layout
 
 Edit `src/`, `templates/` or `documents/<slug>/document.json`, then run `npm run build`.
