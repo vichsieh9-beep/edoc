@@ -21,7 +21,7 @@ export default defineConfig({
   webServer: process.env.EDOC_BASE_URL
     ? undefined
     : {
-        command: 'node scripts/build.mjs && node scripts/serve.mjs',
+        command: 'node tests/serve-fixture.mjs',
         url: `http://127.0.0.1:${PORT}/`,
         reuseExistingServer: !process.env.CI,
       },

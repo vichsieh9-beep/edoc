@@ -18,7 +18,7 @@
       </button>
       <div class="version-menu" id="versionMenu"></div>
     </div>
-    <button id="toggleChanges" class="toggle on">顯示變更：開</button>
+    <button id="toggleChanges" class="toggle on">所有標記</button>
   </div>
   <div class="bar-row solo" id="barRow">
     <div class="group edit-group" id="editGroup" hidden>
@@ -67,11 +67,14 @@
     <div class="hash-text" id="revisionHash"></div>
   </section>
 
-  <div id="doc" class="doc" contenteditable="false" spellcheck="false"></div>
+  <div class="document-review" id="documentReview">
+    <div id="doc" class="doc" contenteditable="false" spellcheck="false"></div>
+    <aside id="revisionMarkup" class="revision-markup" aria-label="修訂檢視"></aside>
+  </div>
 
   <div class="legend">
-    <span class="dot blue"></span>藍色＝本版新增或修改
-    <span class="dot red"></span>紅色刪除線＝本版刪除
+    <span class="dot blue"></span>藍色底線＝新增或格式變更
+    <span class="dot red"></span>頁邊紅線＝有修訂；刪除內容見右側修訂欄
     <div class="hint">正式版本永久唯讀。有編輯權限的人按「開始修訂」即可直接修改；按「完成修訂-版本更新」後，系統會自動比對、產生摘要並發布新版本。</div>
   </div>
   <footer class="engine-foot">EDoc {{engineVersion}}</footer>

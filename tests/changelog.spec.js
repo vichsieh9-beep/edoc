@@ -68,7 +68,7 @@ test('applyAiSummary fills hash and time, and rejects bad or conflicting summari
 
 test('stored versions v0.1–v0.7 need no AI summary (their summaries are human-written)', async () => {
   const source = JSON.parse(await readFile(join(ROOT, 'documents/qa-senior-game-qa/document.json'), 'utf8'));
-  const facts = await readVersionFacts('qa-senior-game-qa', Object.keys(source.versions));
+  const facts = await readVersionFacts('qa-senior-game-qa', Object.keys(source.versions).filter(v=>parseFloat(v.slice(1))<=0.7));
   expect(facts.map((f) => f.machineSummary)).toEqual(facts.map(() => false));
   expect(facts.every((f) => /^[0-9a-f]{64}$/.test(f.hash))).toBe(true);
 });

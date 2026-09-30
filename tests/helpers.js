@@ -130,8 +130,10 @@ export async function renderedDiff(page) {
         const t = n.textContent.replace(/\s+/g, '');
         if (!t) continue;
         const el = n.parentElement;
-        if (!el.checkVisibility()) continue;
-        const color = getComputedStyle(el).color;
+        const deleted=el.closest('.deleted');
+        // Deleted text is now rendered in the revision rail, outside #doc.
+        if (!el.checkVisibility() && !(deleted && !doc.classList.contains('clean'))) continue;
+        const color = deleted ? RED : getComputedStyle(el).color;
         if (color === BLUE) out.blue += t;
         else if (color === RED) out.red += t;
         else if (color !== PLAIN) out.otherColors.push(color);
@@ -154,6 +156,9 @@ export const strip = (s) => s.replace(/\s+/g, '');
 /** Assert the rendered diff is exactly `blue`/`red`, and is a faithful merge of `before` and `after`. */
 export async function expectDiff(page, { blue, red, before, after }) {
   const d = await renderedDiff(page);
+  const removed = await page.locator('#revisionMarkup .markup-deletion').allTextContents();
+  expect(removed.join('').replace(/\s+/g, '')).toBe(strip(red));
+  if(red) await expect(page.locator('#revisionMarkup')).toBeVisible();
   expect.soft(d.otherColors, 'no stray colors (e.g. inline styles)').toEqual([]);
   expect.soft(d.oldText, 'non-blue text must equal the previous version').toBe(strip(before));
   expect.soft(d.newText, 'non-red text must equal the new version').toBe(strip(after));

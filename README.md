@@ -40,6 +40,8 @@ npm test        # Chromium + WebKit; publishing runs the real Worker code agains
 EDOC_BASE_URL=https://vichsieh9-beep.github.io/edoc/ npm test   # read-only checks against the live site
 ```
 
+Local tests serve isolated HTML from `_site/test/`, with QA pinned to the immutable v0.7 baseline; publishing newer real documents does not change the test starting point.
+
 The golden tests (`tests/__golden__/`) lock version hashes and exact diff output; update them
 only for an intended behavior change (`npx playwright test tests/golden.spec.js --update-snapshots`).
 Engine changes that reach `main` bump `ENGINE_VERSION` in `src/engine/meta.js` (R2.x).
@@ -57,6 +59,8 @@ Engine changes that reach `main` bump `ENGINE_VERSION` in `src/engine/meta.js` (
 New documents (空白、複製、貼上文字、上傳 Word) get the address `documents/d-xxxx/` and appear
 after the next deploy. Archived documents leave the Library and their page only says so; every
 version stays in `document.json` (and in the public git history).
+
+The document offers 「所有標記」 (insertions underlined in the body, deletions in the revision rail) and 「簡單標記」 (current wording with revision margin lines). On narrow screens, the revision rail moves below the document. Draft insertion highlights use the CSS Highlight API without rewriting editable text nodes; browsers without that API retain the margin hints and deletion rail.
 
 Drafts are saved in the editor's browser as they type. The Worker only appends the next version,
 checks the link and the version chain, and never edits older versions.

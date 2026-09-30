@@ -1,4 +1,5 @@
 // Read-only view of a formal version: version menu, version card, change highlighting.
+import { renderRevisionMarkup } from './revision-markup.js';
 import { el } from './elements.js';
 import { state, latestVersion, ensureHash } from './state.js';
 import { setDocHtml, leaveRevisionView } from './doc-surface.js';
@@ -50,9 +51,11 @@ export function buildVersionMenu() {
 export function applyCleanState() {
   const { clean }=state;
   el.doc.classList.toggle('clean', clean);
-  el.toggleChanges.textContent = clean ? '顯示變更：關' : '顯示變更：開';
+  el.toggleChanges.textContent = clean ? '簡單標記' : '所有標記';
   el.toggleChanges.classList.toggle('on', !clean);
   el.toggleChanges.classList.toggle('off', clean);
+  el.toggleChanges.setAttribute('aria-label',clean ? '簡單標記，切換所有標記' : '所有標記，切換簡單標記');
+  renderRevisionMarkup();
 }
 export async function renderVersion(v) {
   state.activeVersion=v; state.activeRevision=null; state.suppressObserver=true;

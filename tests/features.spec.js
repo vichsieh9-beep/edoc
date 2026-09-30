@@ -19,7 +19,7 @@ test('header: title on top, reading controls, then editing and sharing; engine v
   const head = page.locator('#docHead');
   await expect(head.locator('.doc-title')).toHaveText('【QA】資深遊戲測試工程師');
   await expect(head.locator('.read-bar #versionButton')).toBeVisible();
-  await expect(head.locator('.read-bar #toggleChanges')).toHaveText('顯示變更：開');
+  await expect(head.locator('.read-bar #toggleChanges')).toHaveText('所有標記');
   await expect(head.locator('#editGroup')).toContainText('正式版・唯讀');
   await expect(head.locator('.share-group')).toHaveText(/複製公開網址\s*複製全文\s*下載 PDF/);
   await expect(head).not.toContainText('Engine');

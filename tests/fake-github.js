@@ -21,7 +21,13 @@ export function testLinks(extra = []) {
     ],
   };
 }
-export const repoDocument = () => JSON.parse(readFileSync(join(ROOT, 'documents/qa-senior-game-qa/document.json'), 'utf8'));
+// UI scenarios start at the immutable v0.7 baseline, independent of later publications.
+export const repoDocument = () => {
+  const doc=JSON.parse(readFileSync(join(ROOT, 'documents/qa-senior-game-qa/document.json'), 'utf8'));
+  doc.latestVersion='v0.7';
+  doc.versions=Object.fromEntries(Object.entries(doc.versions).filter(([v])=>parseFloat(v.slice(1))<=0.7));
+  return doc;
+};
 
 // `documents`: extra documents by slug; `history`: commit messages already on the branch this hour.
 export function createFakeGithub({ document = repoDocument(), links = testLinks(), documents = {}, history = [] } = {}) {

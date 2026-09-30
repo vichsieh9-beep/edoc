@@ -1,5 +1,6 @@
 // Revising: 開始修訂 opens a Draft on the latest version (no form). The draft is saved in this
 // browser as you type; 完成修訂-版本更新 publishes it as the next formal version.
+import { renderRevisionMarkup } from './revision-markup.js';
 import { el } from './elements.js';
 import { state, latestVersion, ensureHash } from './state.js';
 import { setDocHtml, annotateBlocks } from './doc-surface.js';
@@ -35,15 +36,19 @@ export function refreshDraftStats() {
   try {
     const formal = buildFormalDiff(state.versions[state.activeRevision.baseVersion].html, el.doc.innerHTML);
     el.revisionSummary.textContent = analyzeFormalDiff(formal).summary;
+    renderRevisionMarkup(formal);
   } catch (e) {
     el.revisionSummary.textContent = 'Draft 變更統計將於完成修訂時計算';
   }
 }
 let statsTimer = null;
 export function initDraftTracking() {
+  let composing=false;
+  el.doc.addEventListener('compositionstart',()=>{ composing=true; clearTimeout(statsTimer); });
+  el.doc.addEventListener('compositionend',()=>{ composing=false; refreshDraftStats(); });
   el.doc.addEventListener('input', () => {
     clearTimeout(statsTimer);
-    statsTimer = setTimeout(refreshDraftStats, 300);
+    if(!composing) statsTimer = setTimeout(refreshDraftStats, 150);
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraftNow, 600);
   });
