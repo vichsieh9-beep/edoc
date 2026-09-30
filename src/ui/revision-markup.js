@@ -78,10 +78,7 @@ export function renderRevisionMarkup(formalHtml) {
   panel.hidden=state.clean;
   document.getElementById('documentReview').classList.toggle('simple-markup',state.clean);
   const title=document.createElement('h2'); title.textContent='修訂';
-  const base=document.createElement('p'); base.className='markup-base';
-  const previous=draft?.baseVersion || state.versions[state.activeVersion]?.previous;
-  base.textContent=previous ? '比較基準：'+previous : '第一版';
-  panel.replaceChildren(title,base);
+  panel.replaceChildren(title);
   // Each deleted fragment is kept in a separate card with its section for orientation.
   for(const mark of deletions) {
     const card=document.createElement('button'); card.type='button'; card.className='markup-card';

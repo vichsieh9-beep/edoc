@@ -8,26 +8,18 @@ import { usableAiSummary, AI_PLACEHOLDER_PREFIX } from '../engine/ai-summary.js'
 import { sanitizeRevisionHtml } from '../engine/revision.js';
 import { renderEditBar } from './edit-bar.js';
 import { renderPublishState } from './publish-status.js';
-import { localDate, localDateTime } from './format.js';
+import { localDateTime } from './format.js';
+import { analyzeFormalDiff } from '../engine/diff.js';
 
 function aiChip() {
   const c=document.createElement('span'); c.className='ai-chip'; c.textContent='AI'; return c;
 }
-// U1: the AI one-liner leads, the engine's change statistics follow in grey,
-// and the AI changelog comes first in 詳細變更 (replacing the placeholder line).
+// Keep metadata available internally; the card presents only totals and meaning.
 function renderAiSummary(data) {
+  const stats=analyzeFormalDiff(data.html);
+  el.cardSummary.textContent=`統計：${stats.modifiedBlocks} 處修改、${stats.addedBlocks} 處新增、${stats.deletedBlocks} 處刪除。`;
   const ai=usableAiSummary(data);
-  if(!ai) return;
-  const stat=document.createElement('div'); stat.className='ai-stat'; stat.textContent='變更統計：'+data.summary;
-  el.cardSummary.replaceChildren(aiChip(), document.createTextNode(ai.summary), stat);
-  const heading=(text, meta)=>{
-    const li=document.createElement('li'); li.className='ai-sec'; li.textContent=text;
-    if(meta){ const m=document.createElement('span'); m.className='ai-meta'; m.textContent=meta; li.appendChild(m); }
-    return li;
-  };
-  const items=ai.details.map(t=>{ const li=document.createElement('li'); li.textContent=t; return li; });
-  el.detailList.querySelectorAll('.pending-summary').forEach(li=>li.remove());
-  el.detailList.prepend(heading('AI 變更說明', ai.model+' · '+localDate(ai.generatedAt)+' · 內容雜湊相符'), ...items, heading('系統統計'));
+  el.cardMeaning.textContent=ai?.summary || (data.previous ? '變更說明尚未補寫' : data.summary);
 }
 
 export function buildVersionMenu() {

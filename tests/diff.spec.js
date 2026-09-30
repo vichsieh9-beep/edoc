@@ -23,7 +23,7 @@ test.describe('P0 diff correctness', () => {
     await acceptRevision(page, 'v0.8');
 
     await expectDiff(page, { red: '持續', blue: '', before, after: before.replace('並持續追蹤', '並追蹤') });
-    await expect(page.locator('#cardSummary')).toHaveText('職務簡述 1 處修改');
+    await expect(page.locator('#cardSummary')).toHaveText('統計：1 處修改、0 處新增、0 處刪除。');
   });
 
   test('case 2: add 2 chars → only the new chars blue', async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe('P0 diff correctness', () => {
       before,
       after: before.replace(strip(L_TEAM), strip(L_TEAM) + '具備良好的時間管理能力。'),
     });
-    await expect(page.locator('#cardSummary')).toHaveText('需求條件 1 處新增');
+    await expect(page.locator('#cardSummary')).toHaveText('統計：0 處修改、1 處新增、0 處刪除。');
   });
 
   test('case 6a: delete a whole list item (select text, Backspace ×2) → item red strikethrough', async ({ page }) => {
@@ -97,7 +97,7 @@ test.describe('P0 diff correctness', () => {
     await acceptRevision(page, 'v0.8');
 
     await expectDiff(page, { red: L_API, blue: '', before, after: before.replace(strip(L_API), '') });
-    await expect(page.locator('#cardSummary')).toHaveText('需求條件 1 處刪除');
+    await expect(page.locator('#cardSummary')).toHaveText('統計：0 處修改、0 處新增、1 處刪除。');
   });
 
   test('case 6b: delete a whole list item (select from end of previous item) → item red strikethrough', async ({ page }) => {
@@ -131,7 +131,7 @@ test.describe('P0 diff correctness', () => {
 
     // case 7: v0.9 shows only v0.9 vs v0.8 — "嚴謹" is back to white.
     await expectDiff(page, { red: '初步', blue: '', before: v08, after: v09 });
-    await expect(page.locator('#compareBadge')).toHaveText('比較基準：v0.8');
+    await expect(page.locator('#compareBadge')).toBeHidden();
 
     // case 8: v0.8 still shows v0.8 vs v0.7.
     await openVersion(page, 'v0.8');
@@ -202,7 +202,7 @@ test.describe('P0 DOM diff boundaries', () => {
     await acceptRevision(page, 'v0.8');
 
     await expectDiff(page, { red: '', blue: '/Header', before, after: before.replace('Payload', 'Payload/Header') });
-    await expect(page.locator('#cardSummary')).toHaveText('需求條件 1 處修改');
+    await expect(page.locator('#cardSummary')).toHaveText('統計：1 處修改、0 處新增、0 處刪除。');
   });
 
   test('Enter after a heading, type a paragraph → paragraph blue', async ({ page }) => {
