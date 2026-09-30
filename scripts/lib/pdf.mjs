@@ -1,6 +1,7 @@
 // Official A4 PDF of every formal version: documents/<slug>/pdf/<version>.pdf.
 // Generated when the site is deployed, so everyone downloads the same file.
 // Archived documents get none: their public page no longer shows the content.
+import { displayDateTime } from '../../src/engine/date.js';
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -14,12 +15,7 @@ const detail = (details, prefix) => {
   return line ? line.slice(prefix.length) : null;
 };
 
-export function taipeiTime(iso) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
-  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}（台北時間）`;
-}
+export function taipeiTime(iso) { return displayDateTime(iso)+'（台北時間）'; }
 
 export function pdfHtml({ version, html, hash, url, created, editor }) {
   const rows = [

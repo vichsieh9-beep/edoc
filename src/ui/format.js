@@ -1,12 +1,4 @@
-const pad=n=>String(n).padStart(2,'0');
-export function localDate(iso) {
-  const d=new Date(iso);
-  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-}
-export function localDateTime(iso) {
-  const d=new Date(iso);
-  return localDate(iso)+' '+pad(d.getHours())+':'+pad(d.getMinutes());
-}
+export { displayDate as localDate, displayDateTime as localDateTime } from '../engine/date.js';
 export function downloadText(name, text, type) {
   const url=URL.createObjectURL(new Blob([text],{type}));
   const a=document.createElement('a');

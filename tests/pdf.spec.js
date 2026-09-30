@@ -24,9 +24,9 @@ test('verification block lists version, time, editor, full hash and public URL',
     created: '2026-09-24T01:02:00.000Z', editor: '客戶法務',
   });
   expect(html).toContain('版本：v0.8');
-  expect(html).toContain('建立時間：2026-09-24 09:02（台北時間）');
+  expect(html).toContain('建立時間：26/09/24 09:02（台北時間）');
   expect(html).toContain('編輯者：客戶法務');
   expect(html).toContain('a'.repeat(64));
   expect(html).toContain('不等同電子簽章');
-  expect(taipeiTime('2026-12-31T16:30:00Z')).toBe('2027-01-01 00:30（台北時間）');
+  expect(taipeiTime('2026-12-31T16:30:00Z')).toBe('27/01/01 00:30（台北時間）');
 });

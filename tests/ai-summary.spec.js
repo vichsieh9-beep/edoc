@@ -41,11 +41,13 @@ test('version with an AI summary: AI one-liner first, statistics kept, AI change
   await expect(page.locator('#cardSummary .ai-stat')).toHaveText('變更統計：' + base.versions['v0.8'].summary);
 
   const items = await page.locator('#detailList > li').allTextContents();
-  expect(items[0]).toMatch(/^AI 語意 Changelogclaude-test · 2026-09-2\d · 內容雜湊相符$/);
+  expect(items[0]).toMatch(/^AI 變更說明claude-test · 26\/09\/2\d · 內容雜湊相符$/);
   expect(items[1]).toBe(AI.details[0]);
   expect(items[2]).toBe('系統統計');
   expect(items).toContain('職務簡述 1 處修改');
   expect(items.some((t) => t.startsWith('語意摘要：'))).toBe(false);
+  await expect(page.locator('#detailList .pending-summary')).toHaveCount(0);
+  expect(items).toContain('建立時間：'+(await import('../src/engine/date.js')).displayDateTime(base.versions['v0.8'].details.find(t=>t.startsWith('建立時間：')).slice('建立時間：'.length))+'（台北時間）');
 
   await page.locator('#versionButton').click();
   const first = page.locator('#versionMenu .version-item').first();
@@ -68,5 +70,6 @@ test('an AI summary bound to other content is not shown', async ({ page }, testI
 
   await expect(page.locator('#cardSummary .ai-chip')).toHaveCount(0);
   await expect(page.locator('#cardSummary')).toHaveText(base.versions['v0.8'].summary);
-  await expect(page.locator('#detailList')).toContainText('語意摘要：待回到 ChatGPT 後依完整 Diff 自動補充');
+  await expect(page.locator('#detailList .pending-summary')).toHaveText('變更說明尚未補寫');
+  await expect(page.locator('#detailList')).not.toContainText('待回到 ChatGPT');
 });

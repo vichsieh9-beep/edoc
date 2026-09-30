@@ -1,6 +1,7 @@
 // Library page runtime: search for everyone; with an admin link (#edit=<token>) also create,
 // rename, archive and restore documents and hand out edit links.
 // Bundled by scripts/build.mjs into the Library's single self-contained index.html.
+import { displayDate } from './engine/date.js';
 import { readStore, writeStore, removeStore } from './ui/storage.js';
 import { callApi, takeEditToken, LIBRARY_TOKEN_KEY } from './ui/api.js';
 import { isPublished } from './engine/publish.js';
@@ -17,7 +18,7 @@ const state = { admin: null, showArchived: false, query: '' };
 const POLL_MS = () => window.__EDOC_POLL_MS || 10000;
 const LIVE_TIMEOUT_MS = 10 * 60 * 1000;
 const api = (path, payload) => callApi(data.publishApi, path, { token: state.admin.token, ...payload });
-const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const today = () => displayDate(new Date());
 const docBySlug = (slug) => data.docs.find((d) => d.slug === slug);
 
 // Stable surface for tests and tooling.

@@ -8,7 +8,7 @@ import { usableAiSummary, AI_PLACEHOLDER_PREFIX } from '../engine/ai-summary.js'
 import { sanitizeRevisionHtml } from '../engine/revision.js';
 import { renderEditBar } from './edit-bar.js';
 import { renderPublishState } from './publish-status.js';
-import { localDate } from './format.js';
+import { localDate, localDateTime } from './format.js';
 
 function aiChip() {
   const c=document.createElement('span'); c.className='ai-chip'; c.textContent='AI'; return c;
@@ -26,8 +26,8 @@ function renderAiSummary(data) {
     return li;
   };
   const items=ai.details.map(t=>{ const li=document.createElement('li'); li.textContent=t; return li; });
-  [...el.detailList.children].forEach(li=>{ if(li.textContent.startsWith(AI_PLACEHOLDER_PREFIX)) li.remove(); });
-  el.detailList.prepend(heading('AI 語意 Changelog', ai.model+' · '+localDate(ai.generatedAt)+' · 內容雜湊相符'), ...items, heading('系統統計'));
+  el.detailList.querySelectorAll('.pending-summary').forEach(li=>li.remove());
+  el.detailList.prepend(heading('AI 變更說明', ai.model+' · '+localDate(ai.generatedAt)+' · 內容雜湊相符'), ...items, heading('系統統計'));
 }
 
 export function buildVersionMenu() {
@@ -68,7 +68,16 @@ export async function renderVersion(v) {
   el.compareBadge.textContent=data.previous?'比較基準：'+data.previous:'第一版';
   el.statusBadge.textContent=v===latestVersion()?'Current':'歷史版・唯讀';
   el.statusBadge.className='badge '+(v===latestVersion()?'current':'readonly');
-  el.detailList.innerHTML=''; data.details.forEach(x=>{const li=document.createElement('li');li.textContent=x;el.detailList.appendChild(li);});
+  el.detailList.innerHTML=''; data.details.forEach(x=>{
+    const li=document.createElement('li');
+    if(x.startsWith(AI_PLACEHOLDER_PREFIX)) {
+      li.className='pending-summary';
+      li.textContent='變更說明尚未補寫';
+    } else {
+      li.textContent=x.startsWith('建立時間：') ? '建立時間：'+localDateTime(x.slice('建立時間：'.length))+'（台北時間）' : x;
+    }
+    el.detailList.appendChild(li);
+  });
   el.versionHash.textContent='SHA-256：'+(await ensureHash(v));
   renderAiSummary(data);
   renderPublishState(v);

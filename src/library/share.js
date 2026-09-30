@@ -2,7 +2,7 @@
 // A new link is shown once; GitHub keeps only its hash.
 import { h, openModal } from './modal.js';
 
-const day = (iso) => String(iso || '').slice(0, 10);
+import { displayDate as day } from '../engine/date.js';
 
 async function copyText(text, button) {
   try {

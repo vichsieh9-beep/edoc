@@ -24,7 +24,7 @@ test('visitors see the listed documents with version and last update, can search
   await expect(page.locator('.head h1')).toHaveText('EDoc 文件庫');
   const qa = row(page, '【QA】資深遊戲測試工程師');
   await expect(qa.locator('.ver')).toHaveText('v0.7');
-  await expect(qa.locator('.upd')).toHaveText(/^更新 \d{4}-\d{2}-\d{2}/);
+  await expect(qa.locator('.upd')).toHaveText(/^更新 \d{2}\/\d{2}\/\d{2}/);
   await expect(qa.locator('a.name')).toHaveAttribute('href', `./documents/${QA}/`);
   await expect(page.locator('#list')).not.toContainText('EDoc 測試文件'); // unlisted sandbox
   await expect(page.locator('#newBtn')).toBeHidden();

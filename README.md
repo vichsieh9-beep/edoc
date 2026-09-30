@@ -65,6 +65,11 @@ The document offers 「所有標記」 (insertions underlined in the body, delet
 Drafts are saved in the editor's browser as they type. The Worker only appends the next version,
 checks the link and the version chain, and never edits older versions.
 
+Dates displayed to readers use `YY/MM/DD` (for example `26/09/30`) in Taipei time.
+Where a time is useful, display `HH:mm`; persisted timestamps keep their ISO 8601 precision.
+Pending semantic summaries display 「變更說明尚未補寫」. Valid AI summaries display
+under 「AI 變更說明」; this label does not imply an automatic background AI service.
+
 ## AI semantic summaries
 
 ```sh

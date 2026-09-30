@@ -7,6 +7,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { displayDate } from '../../src/engine/date.js';
 import { ENGINE_VERSION } from '../../src/engine/meta.js';
 import { versionOrder } from '../../src/engine/version.js';
 import { rowsHtml } from '../../src/library/rows.js';
@@ -54,12 +55,7 @@ export async function loadTemplates() {
 }
 
 // Dates on the site are Taipei dates, whatever machine builds it.
-export function taipeiDate(iso) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-}
+export function taipeiDate(iso) { return displayDate(iso) || null; }
 
 /** Last update shown in the Library: the latest version's time and editor when it records them. */
 export function updatedInfo(doc, fallbackIso = null) {
