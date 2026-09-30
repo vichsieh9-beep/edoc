@@ -1,9 +1,12 @@
 // Serve isolated test HTML; never overwrite the user's current local preview.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { bundleRuntime, loadTemplates, loadDocuments, loadConfig, renderDocument, renderArchived, renderLibrary } from '../scripts/lib/site.mjs';
+import { buildSite, bundleRuntime, loadTemplates, loadDocuments, loadConfig, renderDocument, renderArchived, renderLibrary } from '../scripts/lib/site.mjs';
 import { repoDocument } from './fake-github.js';
 const output='_site/test';
+// File-copy and PDF tooling tests read the production output. A clean CI checkout
+// has no generated pages; build them there without replacing local user previews.
+if(process.env.CI) await buildSite();
 const [templates,script,libraryScript,entries,config]=await Promise.all([
   loadTemplates(),bundleRuntime(),bundleRuntime('src/library.js'),loadDocuments(),loadConfig(),
 ]);
