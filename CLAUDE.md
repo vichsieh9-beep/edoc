@@ -30,10 +30,11 @@ so archived content stays in git history anyway.
 
 ## Current priority
 
-1. Publish current site to GitHub Pages.
-2. Add regression tests for diff correctness.
-3. Fix correctness before refactoring.
-4. Only then modularize the engine.
+1. Protect diff correctness: keep golden and P0 regression tests passing. Fix correctness before adding features or refactoring; extend coverage for nested lists, inline formatting, tables, images, heading reordering and multi-block paste.
+2. Complete and validate the publish-to-PDF flow: after the public page goes live, the newly published version's PDF must be downloadable without reloading. Preserve draft restrictions and historical-version downloads.
+3. Protect public editing and library administration: keep secrets out of client code, enforce admin/document-scoped permissions in the Worker, and sanitize stored/imported HTML before rendering.
+4. Require Vic's approval of a current-vs-proposed comparison before changes to visual presentation. Preserve immutable formal versions and separate document versions from engine versions.
+5. Maintain operational readiness: keep GitHub Pages/CI regression checks healthy and track renewal of the GitHub credential due in September 2027. Treat completed deployment and modularization work as baseline, not pending tasks.
 
 ## Critical diff invariant
 

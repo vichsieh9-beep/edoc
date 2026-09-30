@@ -2,6 +2,7 @@
 import { el } from './elements.js';
 import { state } from './state.js';
 import { showNotice } from './notice.js';
+import { updatePdfLink } from './share.js';
 
 const POLL_MS = () => window.__EDOC_POLL_MS || 10000;
 const TIMEOUT_MS = 10 * 60 * 1000;
@@ -37,6 +38,10 @@ async function poll() {
     const live = await latestOnSite();
     if (live && num(live) >= num(p.version)) {
       p.status = 'live';
+      // Deployment produces a PDF for every formal version, including this new one.
+      state.meta.pdfVersions ||= [];
+      if (!state.meta.pdfVersions.includes(p.version)) state.meta.pdfVersions.push(p.version);
+      updatePdfLink();
       renderPublishState(state.activeVersion);
       return;
     }

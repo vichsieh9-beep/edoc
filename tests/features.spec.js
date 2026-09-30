@@ -96,6 +96,11 @@ test('after publishing, the badge turns "已上線" once the public page carries
   await editAndPublish(page);
   await expect(page.locator('#publishBadge')).toHaveText('✓ 已上線');
   await expect(page.locator('#publishNote')).toHaveText('公開網址已更新，可以用 LINE 通知對方了。');
+  const pdf = page.locator('#pdfBtn');
+  await expect(pdf).toHaveAttribute('aria-disabled', 'false');
+  await expect(pdf).not.toHaveClass(/disabled/);
+  await expect(pdf).toHaveAttribute('href', 'pdf/v0.8.pdf');
+  await expect(pdf).toHaveAttribute('download', '【QA】資深遊戲測試工程師_v0.8.pdf');
 });
 
 test('someone published first: conflict is explained, the draft stays and a backup can be downloaded', async ({ page }, testInfo) => {
