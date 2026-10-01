@@ -261,3 +261,35 @@ test('a local file copy is view-only and cannot copy a public URL', async ({ pag
   await expect(page.locator('#editGroup')).toBeHidden();
   await expect(page.locator('#shareUrlBtn')).toBeDisabled();
 });
+
+for (const viewport of [{ width: 1280, height: 650 }, { width: 440, height: 700 }]) {
+  test(`version menu scrolls to oldest version within viewport ${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openDoc(page);
+    // Long history must remain usable even when summaries occupy multiple lines.
+    await page.locator('#versionMenu .version-summary').evaluateAll(items => {
+      items.forEach(item => { item.textContent = '完整版本變更說明。'.repeat(25); });
+    });
+    await page.locator('#versionButton').click();
+    const menu = page.locator('#versionMenu');
+    const geometry = await menu.evaluate(el => ({
+      bottom: el.getBoundingClientRect().bottom,
+      scrollable: el.scrollHeight > el.clientHeight,
+      overflow: getComputedStyle(el).overflowY,
+    }));
+    expect(geometry.bottom).toBeLessThanOrEqual(viewport.height - 16);
+    expect(geometry.scrollable).toBe(true);
+    expect(geometry.overflow).toMatch(/auto|scroll/);
+    await menu.hover();
+    await page.mouse.wheel(0, 10000);
+    await expect.poll(() => menu.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    const oldest = menu.locator('.version-item').last();
+    await expect(oldest).toBeInViewport();
+    await oldest.click();
+    await expect(page.locator('#versionLabel')).toHaveText('v0.1');
+    await expect(menu).not.toBeVisible();
+    await page.locator('#versionButton').click();
+    await page.setViewportSize({ width: viewport.width, height: 500 });
+    await expect.poll(async () => (await menu.boundingBox()).y + (await menu.boundingBox()).height).toBeLessThanOrEqual(484);
+  });
+}

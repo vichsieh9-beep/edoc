@@ -39,6 +39,9 @@ button.primary:hover{background:#1e40af}
 .version-menu{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);width:390px;max-width:min(92vw,390px);
   background:#fff;border:1px solid var(--line);border-radius:12px;padding:7px;box-shadow:0 12px 30px rgba(0,0,0,.15);display:none;z-index:40}
 .version-menu.open{display:block}
+.version-menu{max-height:var(--version-menu-height,70dvh);overflow-y:scroll;overscroll-behavior:contain;scrollbar-gutter:stable}
+.version-menu::-webkit-scrollbar{width:10px}
+.version-menu::-webkit-scrollbar-thumb{background:#a1a1aa;border:2px solid white;border-radius:10px}
 .version-item{padding:10px 11px;border-radius:9px;cursor:pointer;border:1px solid transparent}
 .version-item:hover{background:#f4f4f5}
 .version-item.active{background:#e8f0fe;border-color:#8ab4f8}

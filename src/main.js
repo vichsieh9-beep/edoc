@@ -32,7 +32,21 @@ window.EDoc={
   get versions(){ return state.versions; },
 };
 
-el.versionButton.addEventListener('click',e=>{e.stopPropagation();el.versionMenu.classList.toggle('open')});
+function fitVersionMenu() {
+  if (!el.versionMenu.classList.contains('open')) return;
+  const viewport=window.visualViewport;
+  const bottom=viewport ? viewport.offsetTop+viewport.height : window.innerHeight;
+  const top=el.versionMenu.getBoundingClientRect().top;
+  el.versionMenu.style.setProperty('--version-menu-height',`${Math.max(0,bottom-top-16)}px`);
+}
+el.versionButton.addEventListener('click',e=>{
+  e.stopPropagation();el.versionMenu.classList.toggle('open');fitVersionMenu();
+});
+el.versionMenu.addEventListener('click',e=>e.stopPropagation());
+window.addEventListener('resize',fitVersionMenu);
+window.visualViewport?.addEventListener('resize',fitVersionMenu);
+window.visualViewport?.addEventListener('scroll',fitVersionMenu);
+new ResizeObserver(fitVersionMenu).observe(el.versionButton.closest('.read-bar'));
 document.addEventListener('click',()=>el.versionMenu.classList.remove('open'));
 el.toggleChanges.addEventListener('click',()=>{state.clean=!state.clean;applyCleanState()});
 el.newRevisionBtn.addEventListener('click',()=>startRevision());
