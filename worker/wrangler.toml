@@ -8,3 +8,10 @@ compatibility_date = "2026-09-01"
 GITHUB_REPO = "vichsieh9-beep/edoc"
 GITHUB_BRANCH = "main"
 ALLOWED_ORIGIN = "https://vichsieh9-beep.github.io"
+
+[durable_objects]
+bindings = [{ name = "COLLABORATION", class_name = "CollaborationHub" }]
+
+[[migrations]]
+tag = "collaboration-v1"
+new_sqlite_classes = ["CollaborationHub"]
