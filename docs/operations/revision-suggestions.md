@@ -1,6 +1,6 @@
 # EDoc 修訂建議：操作與發布準備
 
-26/10/01；僅本機準備，未啟用雲端。正式資料仍為 documents/*/document.json；私人建議／決定／留言／權限／工作保存在 SQLite Durable Object，不能放入 GitHub、Pages、PDF 或公共備份。
+26/10/02；R2.14 正式發布流程。正式資料仍為 documents/*/document.json；私人建議／決定／留言／權限／工作保存在 SQLite Durable Object，不能放入 GitHub、Pages、PDF 或公共備份。
 
 ## 本機驗證
 
@@ -28,10 +28,21 @@ Cloudflare SQLite DO 提供過去 30 天 PITR，且不支援本機 PITR；參見
 
 模式關閉用管理介面的切換；保留私人建議及歷程、已受理發布仍可核對完成。**關閉修訂建議不是事故停止發布開關**：它恢復原直接版本更新流程。事故時維運須另外阻止新建議／新發布路由，保留已受理工作的核對與授權唯讀歷程；目前尚未提供專用事故開關。不要回退到未經 Durable Object 的直接 GitHub 寫入。
 
-## 發布前待核准清單
+## R2.14 部署紀錄與驗收範圍
+
+- Vic 已於 26/10/02 授權「正式上線目前版本」。Cloudflare 控制台確認 Workers Free；沒有升級付費方案，也沒有啟用付費 AI。
+- Worker 已部署 `dc512406-ceaf-4a67-9a95-4197d423f24f`；`COLLABORATION` 綁定 `CollaborationHub`，首次 SQLite migration 為 `collaboration-v1`。舊 Worker 為 `f08805e0-9fd2-426d-a38d-d12fd4db8edc`；啟用協作後不可直接回退到繞過 DO 的舊寫入流程。
+- 第一輪 Linux CI 36976608980：369 通過、2 略過，1 個復原測試過早假設背景寫入完成。測試已改為等待模擬 GitHub 寫入，再重啟並推進測試時鐘越過既有寫入租約；正式 Worker 邏輯未因本修正改變。本機 15 項發布復原測試及該情境重複 5 次皆通過。
+- Pages 必須由 main 的完整 Linux Chromium/WebKit 測試通過後才部署；CI 同時重建中文正式 PDF，只組裝公開 HTML/PDF，不包含私人 SQLite 或提案資料。實際部署結果以 GitHub Actions 成功記錄及正式網址讀回為準。
+- 此次不修改正式文件 JSON、分享連結登錄與任何歷史版本。每份文件預設保留原直接更新模式；管理員可在「分享權限」逐份啟用修訂建議。
+- 雲端 PITR／私人備份還原演練與真實雙人五項提案、三項採納、兩項不採納驗收尚未執行；本機實際 workerd SQLite 已覆蓋這些操作流程。不要把本機驗收寫成真實雙人上線驗收。
+
+## 首次部署檢查參考（26/10/01 原規劃）
+
+以下保留首次發布的檢查背景；是否已完成以本頁上方部署紀錄為準。
 
 - 實際帳戶的 Workers 方案、SQLite DO 支援、配額、帳單與告警尚未驗證。官方 [pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) 與 [limits](https://developers.cloudflare.com/durable-objects/platform/limits/) 於26/10/01查閱：Free 支援 SQLite DO，請求 100,000/日、讀列 5,000,000/日、寫列 100,000/日、帳戶儲存 5GB；超限會停止操作。Paid 按用量計費，需核准預算再建立。官方 limits 表與 FAQ 對 Free 單物件上限列值有差異，上線前以帳戶實況／平台確認，不把10GB當Free保證。
-- 生產 worker/wrangler.toml **尚未增加 binding**，新版程式的版本寫入在缺少 binding 時回503；不可直接部署這份程式而漏掉 namespace migration。
+- 26/10/01 時生產 worker/wrangler.toml **尚未增加 binding**，新版程式的版本寫入在缺少 binding 時回503；不可直接部署這份程式而漏掉 namespace migration。
 - 以下僅候選設定，待核准後比對既有 remote migrations、帳戶與類別名稱再採用，不在本輪執行：
 
 ```toml
@@ -47,4 +58,4 @@ new_sqlite_classes = ["CollaborationHub"]
 - 另行核准隔離測試文件啟用模式；以真實 B五項、A採納三項不採納兩項，核對所有具名歷程、即時權限變更、公開 HTML、PDF及舊版完整保留；真實發布摘要只描述已採納內容。
 - 付費AI仍未啟用；aiSummary 空白顯示「變更說明尚未補寫」。後續正式版本由Codex更新仍遵循AGENTS完整diff及同次提交摘要流程。
 
-完成上述雲端與維運驗證，才可對外宣稱可上線；本輪僅完成本機驗收及待發布資料。
+正式發布與可用性應以當次 Worker、Pages 及線上驗證結果回報；尚未完成的維運演練須明列，不宣稱已驗證。

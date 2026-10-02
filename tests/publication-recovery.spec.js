@@ -25,7 +25,12 @@ test('response_lost_retry_once and same ID changed payload refused',async()=>{
  expect((await h.call('/suggestions/publish',{...body,itemIds:[s.items[0].id]})).status).toBe(409);
 });
 test('GitHub saved but response lost reconciles after runtime restart',async()=>{
- const s=await ready();rt.loseNextWrite();const p=await publish(s);await rt.restart();
+ const s=await ready();rt.loseNextWrite();const p=await publish(s);
+ // Acceptance schedules an alarm; wait for the simulated GitHub write before
+ // restarting. A crash can leave the durable two-minute writing lease alive.
+ await expect.poll(()=>rt.gh.commits.length,{timeout:10000}).toBe(1);
+ await rt.restart();
+ await rt.call('/advance-clock',{ms:120_001});
  const r=await status(p.body);expect(r.body.status).toBe('saved');expect(rt.gh.commits).toHaveLength(1);
  const events=(await h.call('/suggestions/history',{id:s.id})).body.events;expect(events.filter(e=>e.action==='publication.saved')).toHaveLength(1);
 });
