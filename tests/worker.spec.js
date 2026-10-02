@@ -1,3 +1,4 @@
+import {localCollaboration} from './local-collaboration.js';
 // Publish API (worker/src/index.js): every refusal path, against a fake GitHub.
 // Library management (create, rename, archive, edit links) needs an admin link.
 import { test, expect } from '@playwright/test';
@@ -24,7 +25,7 @@ async function call(gh, path, body, { origin = ORIGIN, method = 'POST', raw } = 
     method, headers: { 'Content-Type': 'text/plain;charset=UTF-8', ...(origin ? { Origin: origin } : {}) },
     body: method === 'POST' ? raw ?? JSON.stringify(body) : undefined,
   });
-  const res = await handle(req, ENV, { fetch: gh.fetch, now: () => NOW });
+  const res = await handle(req, ENV, { fetch: gh.fetch, now: () => NOW, collaboration: localCollaboration(gh,ENV,{now:()=>NOW}) });
   return { status: res.status, body: res.status === 204 ? null : await res.json(), headers: res.headers };
 }
 const publish = (gh, extra = {}) => call(gh, '/versions', {
@@ -126,7 +127,7 @@ const callWith = async (gh, path, body, deps) => {
   const req = new Request('https://edoc-publish.example.workers.dev' + path, {
     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8', Origin: ORIGIN }, body: JSON.stringify(body),
   });
-  const res = await handle(req, ENV, { fetch: gh.fetch, now: () => NOW, ...deps });
+  const res = await handle(req, ENV, { fetch: gh.fetch, now: () => NOW, ...deps, collaboration:localCollaboration(gh,ENV,{now:()=>NOW,...deps}) });
   return { status: res.status, body: await res.json() };
 };
 

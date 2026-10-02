@@ -1,5 +1,6 @@
 // 分享編輯權限: the read-only address, who may edit this document, and new edit links.
 // A new link is shown once; GitHub keeps only its hash.
+import {openSharingPermissions} from '../ui/sharing-permissions.js';
 import { h, openModal } from './modal.js';
 
 import { displayDate as day } from '../engine/date.js';
@@ -15,7 +16,7 @@ async function copyText(text, button) {
   }
 }
 
-export function openShareDialog({ doc, api }) {
+function openLegacyShareDialog({ doc, api }) {
   const url = new URL(`documents/${doc.slug}/`, location.href).href;
   let links = [];
   const list = h('div', { class: 'links', id: 'linkList' }, h('div', { class: 'none' }, '讀取中…'));
@@ -93,4 +94,12 @@ export function openShareDialog({ doc, api }) {
     .then((r) => { links = r.links; renderLinks(); })
     .catch((e) => list.replaceChildren(h('div', { class: 'none' }, e.message)));
   return modal;
+}
+
+export async function openShareDialog({doc,api}){
+ let session;try{session=await api('/session',{doc:doc.slug});}catch{}
+ if(session?.policy?.enabled)return openSharingPermissions({doc,api,session});
+ const modal=openLegacyShareDialog({doc,api});
+ if(session?.role==='admin'){const button=h('button',{onclick:()=>{modal.close();openSharingPermissions({doc,api,session});}},'設定修訂建議權限');modal.root.append(button);}
+ return modal;
 }

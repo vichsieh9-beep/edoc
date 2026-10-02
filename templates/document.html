@@ -12,6 +12,8 @@
   <a class="back-link" id="backLink" href="../../">← 文件庫</a>
   <div class="doc-title">{{title}}</div>
   <div class="read-bar">
+    <button id="suggestionsBtn" hidden>修訂建議</button>
+    <button id="permissionsBtn" hidden>分享權限</button>
     <div class="version-control" id="versionControl">
       <button class="version-button" id="versionButton">
         <span id="versionLabel">{{latestVersion}} · Current</span><span class="caret">▼</span>
@@ -24,6 +26,7 @@
     <div class="group edit-group" id="editGroup" hidden>
       <span class="chip who" id="whoChip"></span>
       <span class="chip state" id="stateChip">正式版・唯讀</span>
+      <button id="publishSuggestionBtn" class="primary" hidden>發布新版</button>
       <button id="newRevisionBtn" class="primary">開始修訂</button>
       <button id="finishRevisionBtn" class="primary" hidden>完成修訂-版本更新</button>
       <button id="discardRevisionBtn" hidden>放棄修訂</button>
@@ -75,7 +78,7 @@
 
   <div class="legend">
     <span class="dot blue"></span>藍色底線＝新增或格式變更
-    <span class="dot red"></span>頁邊紅線＝有修訂；刪除內容見右側修訂欄
+    <span class="dot red"></span>頁邊紅線＝有修訂；所有標記以紅字刪除線顯示刪除內容，右側保留修訂對照
     <div class="hint">正式版本永久唯讀。有編輯權限的人按「開始修訂」即可直接修改；按「完成修訂-版本更新」後，系統會自動比對、產生變更統計並發布新版本；變更說明由 Codex 協助補寫。</div>
   </div>
   <footer class="engine-foot">EDoc {{engineVersion}}</footer>

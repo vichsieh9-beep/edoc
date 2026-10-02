@@ -12,7 +12,7 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
-export function openModal({ title, body = [], actions = [], note = '', label = title }) {
+export function openModal({ title, body = [], actions = [], note = '', label = title, onClose }) {
   let busy = false;
   const error = h('div', { class: 'error', role: 'alert', hidden: true });
   const buttons = h('div', { class: 'actions' });
@@ -22,6 +22,7 @@ export function openModal({ title, body = [], actions = [], note = '', label = t
   const onKey = (e) => { if (e.key === 'Escape' && !busy) close(); };
   const close = () => {
     backdrop.remove();
+    onClose?.();
     document.removeEventListener('keydown', onKey);
   };
   const api = {

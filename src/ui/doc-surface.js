@@ -4,6 +4,8 @@
 import { el } from './elements.js';
 import { state } from './state.js';
 import { BLOCK_SELECTOR } from '../engine/dom.js';
+import { clearDraftDeletions, draftInputRange, restoreDraftSelection } from './draft-deletions.js';
+import {clearRevisionNavigation} from './revision-navigation.js';
 
 const OBSERVER_OPTIONS={childList:true,subtree:true,characterData:true};
 
@@ -29,7 +31,7 @@ const observer = new MutationObserver(mutations=>{
       }
     });
   }
-  state.activeRevision.html=el.doc.innerHTML;
+  state.activeRevision.html=draftSurfaceHtml();
 });
 
 export function withObserverPaused(fn) {
@@ -37,8 +39,15 @@ export function withObserverPaused(fn) {
   try { return fn(); }
   finally { observer.observe(el.doc,OBSERVER_OPTIONS); }
 }
+export function draftSurfaceHtml() {
+  if(!el.doc.querySelector('.draft-deletion')) return el.doc.innerHTML;
+  const copy=el.doc.cloneNode(true);
+  copy.querySelectorAll('.draft-deletion').forEach(n=>n.remove());
+  return copy.innerHTML;
+}
 export function setDocHtml(html) {
-  withObserverPaused(()=>{ el.doc.innerHTML=html; });
+  clearRevisionNavigation();
+  withObserverPaused(()=>{ clearDraftDeletions(el.doc);el.doc.innerHTML=html; });
 }
 function nearestBlock(node) {
   let n=node;
@@ -57,11 +66,12 @@ export function annotateBlocks(root=el.doc) {
   });
 }
 export function leaveRevisionView() {
-  if(state.activeRevision) state.activeRevision.html=el.doc.innerHTML;
+  if(state.activeRevision) state.activeRevision.html=draftSurfaceHtml();
   state.activeRevision=null;
 }
 
 let preInputBlockId=null;
+const NAVIGATION_KEYS=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown','Shift','Control','Alt','Meta','CapsLock','Escape','Tab']);
 function markChangedFromEvent() {
   if(!state.activeRevision) return;
   let block=null;
@@ -75,11 +85,36 @@ function markChangedFromEvent() {
     block.classList.add('revision-changed');
   }
   preInputBlockId=null;
-  state.activeRevision.html=el.doc.innerHTML;
+  state.activeRevision.html=draftSurfaceHtml();
 }
 export function initDocSurface() {
-  el.doc.addEventListener('beforeinput',()=>{
+  // Keyboard, paste/cut and composition happen before beforeinput target ranges
+  // are captured. Clear presentation splits there to retain native edit commands.
+  const prepareEditing=event=>{
+    if(!state.activeRevision)return;
+    // Moving/selecting the caret must not remove comparison text or reflow the
+    // document. beforeinput still handles edits without a preceding key event.
+    if(event.type==='keydown'&&(NAVIGATION_KEYS.has(event.key)||((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a')))return;
+    withObserverPaused(()=>clearDraftDeletions(el.doc,{preserveBlocks:event.type==='compositionstart'||state.composing}));
+    el.doc.dispatchEvent(new Event('edoc-markup-invalidated'));
+  };
+  for(const event of ['keydown','paste','cut','compositionstart','dragstart','drop'])el.doc.addEventListener(event,prepareEditing);
+  el.doc.addEventListener('beforeinput',event=>{
     if(!state.activeRevision) return;
+    const target=draftInputRange(event);
+    const hadSplits=withObserverPaused(()=>clearDraftDeletions(el.doc,{preserveBlocks:state.composing}));
+    // Some touch, dictation and menu edits have no preceding keyboard event.
+    // Reissue supported native commands against the canonical target range;
+    // captured WebKit ranges may otherwise reference removed split nodes.
+    if(hadSplits && event.cancelable){
+      const commands={insertText:'insertText',insertReplacementText:'insertText',insertParagraph:'insertParagraph',insertLineBreak:'insertLineBreak'};
+      const command=commands[event.inputType] || (event.inputType.startsWith('delete')?'delete':null);
+      if(command && (command!=='insertText' || event.data!==null)){
+        event.preventDefault();
+        if(target && !event.inputType.startsWith('history'))restoreDraftSelection(target);
+        document.execCommand(command,false,command==='insertText'?event.data:null);
+      }
+    }
     const sel=window.getSelection();
     const b=nearestBlock(sel && sel.anchorNode);
     if(b){

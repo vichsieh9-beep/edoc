@@ -104,3 +104,4 @@ select.input{appearance:auto}
   .menu{right:10px}
   .modal{padding:16px}
 }
+.permission-row{border-top:1px solid #ddd;padding:12px 0}.permission-identity{display:flex;gap:8px;flex-wrap:wrap}.permission-identity input{min-width:0;max-width:100%;padding:8px;border:1px solid #ccc;border-radius:6px}.capabilities{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0}.capabilities label{display:flex;gap:4px;align-items:center}.permission-new>label{display:block;margin:8px 0}.permission-row button{margin-right:8px}#onceLink{overflow-wrap:anywhere}

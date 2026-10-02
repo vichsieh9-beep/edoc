@@ -1,4 +1,9 @@
 // EDoc runtime entry. Bundled by scripts/build.mjs into each document's single self-contained HTML.
+import {clearRevisionSelection} from './ui/revision-navigation.js';
+import {openSuggestionList} from './ui/suggestions.js';
+import {resumeSuggestionPublication} from './ui/publication-preview.js';
+import {openSharingPermissions} from './ui/sharing-permissions.js';
+import {collaborationApi,refreshCapabilities} from './ui/access.js';
 import { ENGINE_VERSION } from './engine/meta.js';
 import { cleanSnapshot, annotateBaseBlocks } from './engine/dom.js';
 import { buildFormalDiff, analyzeFormalDiff } from './engine/diff.js';
@@ -19,6 +24,8 @@ import { renderEditBar } from './ui/edit-bar.js';
 import { showNotice } from './ui/notice.js';
 import { checkForNewerVersion } from './ui/publish-status.js';
 
+el.suggestionsBtn.addEventListener('click',openSuggestionList);
+el.permissionsBtn.addEventListener('click',()=>openSharingPermissions({doc:{slug:state.meta.slug,title:state.meta.title},session:state.session,api:collaborationApi,onChanged:refreshCapabilities}));
 captureEditToken();
 initDocSurface();
 initDraftTracking();
@@ -48,7 +55,7 @@ window.visualViewport?.addEventListener('resize',fitVersionMenu);
 window.visualViewport?.addEventListener('scroll',fitVersionMenu);
 new ResizeObserver(fitVersionMenu).observe(el.versionButton.closest('.read-bar'));
 document.addEventListener('click',()=>el.versionMenu.classList.remove('open'));
-el.toggleChanges.addEventListener('click',()=>{state.clean=!state.clean;applyCleanState()});
+el.toggleChanges.addEventListener('click',()=>{clearRevisionSelection();state.clean=!state.clean;applyCleanState()});
 el.newRevisionBtn.addEventListener('click',()=>startRevision());
 el.finishRevisionBtn.addEventListener('click',()=>finishRevision());
 el.discardRevisionBtn.addEventListener('click',()=>discardRevision());
@@ -60,6 +67,7 @@ el.discardRevisionBtn.addEventListener('click',()=>discardRevision());
   const newer=await checkForNewerVersion();
   await checkAccess();
   renderEditBar();
+  await resumeSuggestionPublication();
   if(state.linkProblem) showNotice(state.linkProblem,[], 'warn');
   if(state.session && !newer) await offerSavedDraft();
 })();

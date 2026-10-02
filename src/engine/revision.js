@@ -1,4 +1,4 @@
-import { BLOCK_SELECTOR } from './dom.js';
+import { BLOCK_SELECTOR, inertContainer } from './dom.js';
 
 /* Every html shown in the page passes through here: keep only the document content model.
  * Parsed in a <template> so nothing executes or loads while filtering. */
@@ -12,17 +12,16 @@ function isSafeImportUrl(value){
   const v=value.replace(/[\x00-\x20\x7f-\x9f]/g,'').toLowerCase();
   return !/^(javascript|data|vbscript):/.test(v);
 }
-export function sanitizeRevisionHtml(html){
-  const tpl=document.createElement('template');
-  tpl.innerHTML=String(html||'');
-  const root=tpl.content;
+export function sanitizeRevisionHtml(html, context){
+  const root=inertContainer(String(html||''), context);
+  const doc=root.ownerDocument;
   root.querySelectorAll(IMPORT_DROPPED_TAGS).forEach(el=>el.remove());
-  const comments=document.createTreeWalker(root,NodeFilter.SHOW_COMMENT);
+  const comments=doc.createTreeWalker(root,128);
   const drop=[]; while(comments.nextNode()) drop.push(comments.currentNode); drop.forEach(c=>c.remove());
   [...root.querySelectorAll('*')].forEach(el=>{
     if(el.tagName==='DIV'){ // another browser's paragraph: keep the text as <p>
       if(el.querySelector(BLOCK_SELECTOR+',ul,ol,table,div')) el.replaceWith(...el.childNodes);
-      else { const p=document.createElement('p'); p.append(...el.childNodes); el.replaceWith(p); }
+      else { const p=doc.createElement('p'); p.append(...el.childNodes); el.replaceWith(p); }
       return;
     }
     if(!IMPORT_ALLOWED_TAGS.has(el.tagName)){ el.replaceWith(...el.childNodes); return; }
@@ -34,7 +33,7 @@ export function sanitizeRevisionHtml(html){
       if(!allowed.includes(name) || ((name==='href'||name==='src') && !isSafeImportUrl(a.value))) el.removeAttribute(a.name);
     });
   });
-  return tpl.innerHTML;
+  return root.innerHTML;
 }
 
 // A draft saved as a file, e.g. when publishing fails (see ui/draft.js).

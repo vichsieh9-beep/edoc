@@ -10,10 +10,16 @@
     "serve": "node scripts/build.mjs && node scripts/serve.mjs",
     "changelog": "node scripts/changelog.mjs",
     "edit-link": "node scripts/edit-link.mjs",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:collaboration": "node scripts/test-collaboration.mjs",
+    "preview:collaboration": "node scripts/preview-collaboration.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "wrangler": "4.145.0"
+  },
+  "dependencies": {
+    "linkedom": "0.18.13"
   }
 }

@@ -10,6 +10,7 @@ import { renderEditBar } from './edit-bar.js';
 import { renderPublishState } from './publish-status.js';
 import { localDateTime } from './format.js';
 import { analyzeFormalDiff } from '../engine/diff.js';
+import {refreshRevisionNavigation} from './revision-navigation.js';
 
 function aiChip() {
   const c=document.createElement('span'); c.className='ai-chip'; c.textContent='AI'; return c;
@@ -47,9 +48,12 @@ export function applyCleanState() {
   el.toggleChanges.classList.toggle('on', !clean);
   el.toggleChanges.classList.toggle('off', clean);
   el.toggleChanges.setAttribute('aria-label',clean ? '簡單標記，切換所有標記' : '所有標記，切換簡單標記');
+  if(state.privateView){const panel=document.getElementById('revisionMarkup');if(panel)panel.hidden=false;document.getElementById('documentReview').classList.remove('simple-markup');refreshRevisionNavigation();return;}
   renderRevisionMarkup();
 }
 export async function renderVersion(v) {
+  state.privateView=null;state.suggestion=null;el.versionCard.hidden=false;document.getElementById('publicationPreview')?.remove();
+  document.getElementById('revisionMarkup')?.removeAttribute('data-private');document.getElementById('revisionMarkup')?.removeAttribute('data-suggestion-panel');
   state.activeVersion=v; state.activeRevision=null; state.suppressObserver=true;
   // Stored html is filtered before display, so even a leaked edit link cannot inject script.
   const data=state.versions[v]; setDocHtml(sanitizeRevisionHtml(data.html)); state.suppressObserver=false;

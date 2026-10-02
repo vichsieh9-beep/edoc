@@ -1,0 +1,12 @@
+name = "edoc-collaboration-test"
+main = "../tests/collaboration-fixture.js"
+compatibility_date = "2026-09-01"
+[durable_objects]
+bindings = [{ name = "COLLABORATION", class_name = "FixtureHub" }]
+[[migrations]]
+tag = "local-v1"
+new_sqlite_classes = ["FixtureHub"]
+[vars]
+GITHUB_TOKEN = "test"
+GITHUB_REPO = "vichsieh9-beep/edoc"
+GITHUB_BRANCH = "main"

@@ -14,6 +14,11 @@
 //      GITHUB_REPO, GITHUB_BRANCH, ALLOWED_ORIGIN (comma-separated).
 // Requests are "simple" CORS requests (POST, text/plain JSON body) so browsers send no preflight.
 import { nextVersion } from '../../src/engine/version.js';
+import { HttpError } from './errors.js';
+import { github } from './github.js';
+import { publishLegacy as publish } from './legacy-versions.js';
+export { validateVersion } from './legacy-versions.js';
+export { CollaborationHub } from './collaboration/hub.js';
 
 const MAX_BODY = 1_500_000;
 const MAX_HTML = 1_000_000;
@@ -33,13 +38,6 @@ const CREATE_COMMIT = 'Create document ';
 const METHODS = { blank: '空白文件', copy: '複製現有文件', paste: '貼上文字', docx: '上傳 Word' };
 const RETRY = '剛好有人同時更新，請重新整理後再試一次。';
 
-class HttpError extends Error {
-  constructor(status, code, message) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
 
 export default { fetch: (request, env) => handle(request, env) };
 
@@ -66,8 +64,16 @@ export async function handle(request, env, deps = {}) {
     if (request.method !== 'POST') throw new HttpError(405, 'method', '只接受 POST');
     const path = new URL(request.url).pathname.replace(/\/+$/, '');
     const route = ROUTES[path];
-    if (!route) throw new HttpError(404, 'not_found', '找不到這個功能');
+    if (!route && !path.startsWith('/collaboration/') && !path.startsWith('/suggestions/')) throw new HttpError(404, 'not_found', '找不到這個功能');
     const body = await readBody(request);
+    const collaborationPath=path.startsWith('/collaboration/')||path.startsWith('/suggestions/')||path==='/versions'||path==='/session'&&body.scope!=='library'||['/links','/links/list','/links/revoke'].includes(path);
+    if(collaborationPath){
+      if(body.doc)checkSlug(body.doc);
+      const stub=deps.collaboration || (env.COLLABORATION && env.COLLABORATION.get(env.COLLABORATION.idFromName(env.GITHUB_REPO)));
+      if(!stub)throw new HttpError(503,'collaboration_unavailable','協作服務尚未設定，暫時無法進行這個操作');
+      const res=await stub.fetch(new Request('http://collaboration',{method:'POST',body:JSON.stringify({path,body})}));
+      return new Response(await res.text(),{status:res.status,headers:{...cors,'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
+    }
     const gh = github(env, deps.fetch || fetch);
     const auth = await linkFor(body.token, gh);
     const now = deps.now ? deps.now() : new Date();
@@ -152,55 +158,7 @@ async function session({ body, link }) {
   return { name: link.name, role: isAdmin(link) ? 'admin' : 'editor' };
 }
 
-async function publish({ body, link, gh, now }) {
-  checkDocument(link, body.doc);
-  const path = documentPath(body.doc);
-  const { doc, sha } = await readDocument(gh, body.doc, { active: true });
-  if (body.baseVersion !== doc.latestVersion) {
-    throw new HttpError(409, 'conflict', `文件已經更新到 ${doc.latestVersion}，請重新整理後再修改；你的修改已暫存在這個瀏覽器。`);
-  }
-  const key = nextVersion(doc.latestVersion);
-  if (body.versionKey !== key) throw new HttpError(400, 'bad_request', `新版本應為 ${key}`);
-  const version = validateVersion(body.version, { previous: doc.latestVersion, editor: link.name, now });
-  const recent = Object.values(doc.versions || {}).filter((v) => {
-    const t = createdAt(v);
-    return t !== null && now - t < 3600_000;
-  }).length;
-  if (recent >= MAX_PER_HOUR) throw new HttpError(429, 'rate_limited', '這份文件一小時內更新太多次，請稍後再試');
-  // Append only: every existing version is carried over untouched.
-  const next = { ...doc, latestVersion: key, versions: { ...doc.versions, [key]: version } };
-  const commit = await gh.writeJson(path, next, sha, `Add ${key} to ${body.doc} by ${link.name} via EDoc`,
-    '剛好有人同時更新了文件，請重新整理後再試；你的修改已暫存在這個瀏覽器。');
-  return { version: key, commit };
-}
-
-// Keep only known fields. The content hash is recomputed by every viewer from the html,
-// so a client-supplied hash is never stored.
-export function validateVersion(v, { previous, editor, now }) {
-  const bad = (message) => new HttpError(400, 'bad_version', message);
-  if (!v || typeof v !== 'object') throw bad('版本資料錯誤');
-  const text = (s) => typeof s === 'string' && s.length > 0 && s.length <= MAX_TEXT;
-  if (!text(v.summary)) throw bad('版本摘要錯誤');
-  if (!Array.isArray(v.details) || !v.details.length || v.details.length > MAX_DETAILS || !v.details.every(text)) {
-    throw bad('詳細變更錯誤');
-  }
-  if (!validHtml(v.html)) throw bad('文件內容錯誤或太大');
-  if (v.previous !== previous) throw bad(`比較基準應為 ${previous}`);
-  const editors = v.details.filter((d) => d.startsWith(EDITOR));
-  if (editors.length !== 1 || editors[0] !== EDITOR + editor) throw bad('編輯者與編輯連結不符');
-  const created = v.details.filter((d) => d.startsWith(CREATED));
-  const t = created.length === 1 ? Date.parse(created[0].slice(CREATED.length)) : NaN;
-  if (Number.isNaN(t) || Math.abs(now - t) > CLOCK_SKEW_MS) throw bad('建立時間錯誤');
-  return { summary: v.summary, details: v.details.slice(), previous, html: v.html, uiChanges: [], aiSummary: null };
-}
-
 const validHtml = (html) => typeof html === 'string' && !!html.trim() && html.length <= MAX_HTML;
-
-function createdAt(version) {
-  const line = (version.details || []).find((d) => typeof d === 'string' && d.startsWith(CREATED));
-  const t = line ? Date.parse(line.slice(CREATED.length)) : NaN;
-  return Number.isNaN(t) ? null : t;
-}
 
 // New document: the page prepares the html (blank title, copied, pasted or converted from Word);
 // the Worker picks the address and stores it as v0.1.
@@ -315,63 +273,6 @@ async function revokeEditLink({ body, auth, link, gh }) {
   return { id: target.id, revoked: true, commit };
 }
 
-function github(env, fetchImpl) {
-  const api = `https://api.github.com/repos/${env.GITHUB_REPO}/`;
-  const base = api + 'contents/';
-  const branch = env.GITHUB_BRANCH || 'main';
-  const headers = {
-    Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'edoc-publish',
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
-  const url = (path) => base + path.split('/').map(encodeURIComponent).join('/');
-  const unavailable = () => new HttpError(502, 'github', 'GitHub 暫時無法讀取，請稍後再試');
-  return {
-    async readJson(path) {
-      const res = await fetchImpl(`${url(path)}?ref=${encodeURIComponent(branch)}`, { headers });
-      if (res.status === 404) throw new HttpError(404, 'not_found', '找不到這份文件');
-      if (!res.ok) throw unavailable();
-      const data = await res.json();
-      let text;
-      if (data.encoding === 'base64' && data.content) text = fromBase64Utf8(data.content);
-      else {
-        // Files over 1 MB come without inline content.
-        const raw = await fetchImpl(`${url(path)}?ref=${encodeURIComponent(branch)}`, {
-          headers: { ...headers, Accept: 'application/vnd.github.raw' },
-        });
-        if (!raw.ok) throw unavailable();
-        text = await raw.text();
-      }
-      return { json: JSON.parse(text), sha: data.sha };
-    },
-    async exists(path) {
-      const res = await fetchImpl(`${url(path)}?ref=${encodeURIComponent(branch)}`, { headers });
-      if (res.status === 404) return false;
-      if (!res.ok) throw unavailable();
-      return true;
-    },
-    // Messages of the commits touching `path` since `since` (ISO time).
-    async recentCommits(path, since) {
-      const q = new URLSearchParams({ sha: branch, path, since, per_page: '100' });
-      const res = await fetchImpl(`${api}commits?${q}`, { headers });
-      if (!res.ok) throw unavailable();
-      return (await res.json()).map((c) => (c.commit && c.commit.message) || '');
-    },
-    // sha undefined creates the file (GitHub refuses if it already exists).
-    async writeJson(path, value, sha, message, conflictMessage) {
-      const res = await fetchImpl(url(path), {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, content: toBase64Utf8(JSON.stringify(value, null, 2) + '\n'), sha, branch }),
-      });
-      if (res.status === 409 || res.status === 422) throw new HttpError(409, 'conflict', conflictMessage);
-      if (!res.ok) throw new HttpError(502, 'github', 'GitHub 暫時無法寫入，請稍後再試');
-      const data = await res.json();
-      return data.commit && data.commit.sha;
-    },
-  };
-}
 
 function randomBytes(n) {
   return crypto.getRandomValues(new Uint8Array(n));

@@ -3,12 +3,16 @@
 import { renderRevisionMarkup } from './revision-markup.js';
 import { el } from './elements.js';
 import { state, latestVersion, ensureHash } from './state.js';
-import { setDocHtml, annotateBlocks } from './doc-surface.js';
+import { setDocHtml, annotateBlocks, draftSurfaceHtml } from './doc-surface.js';
 import { buildVersionMenu, renderVersion } from './version-view.js';
 import { renderRevisionPanel } from './revision-panel.js';
 import { renderEditBar } from './edit-bar.js';
 import { openDialog } from './dialog.js';
 import { showNotice, hideNotice } from './notice.js';
+import {submitActiveDraft} from './suggestions.js';
+import {prepareSuggestionContent} from '../engine/suggestion-patches.js';
+import {sha256} from '../engine/hash.js';
+import {refreshCapabilities,capability} from './access.js';
 import { api } from './access.js';
 import { markPublishing } from './publish-status.js';
 import { readStore, writeStore, removeStore } from './storage.js';
@@ -22,21 +26,21 @@ const draftKey = () => 'edoc-draft:' + state.docState.documentId;
 export function savedDraft() {
   try { return JSON.parse(readStore(draftKey()) || 'null'); } catch { return null; }
 }
-function saveDraftNow() {
+export function saveDraftNow() {
   const r = state.activeRevision;
   if (!r) return;
-  r.html = el.doc.innerHTML;
-  writeStore(draftKey(), JSON.stringify({ baseVersion: r.baseVersion, html: r.html, savedAt: nowISO() }));
+  r.html = draftSurfaceHtml();
+  writeStore(draftKey(), JSON.stringify({ baseVersion: r.baseVersion, html: r.html, savedAt: nowISO(), sourceSuggestionId:r.sourceSuggestionId,sourceItemIds:r.sourceItemIds,suggestionRequest:r.suggestionRequest }));
 }
 let saveTimer = null;
-function clearSavedDraft() { clearTimeout(saveTimer); removeStore(draftKey()); }
+export function clearSavedDraft() { clearTimeout(saveTimer); removeStore(draftKey()); }
 
-export function refreshDraftStats() {
+export function refreshDraftStats(force=false) {
   if (!state.activeRevision) return;
   try {
     const formal = buildFormalDiff(state.versions[state.activeRevision.baseVersion].html, el.doc.innerHTML);
     el.revisionSummary.textContent = analyzeFormalDiff(formal).summary;
-    renderRevisionMarkup(formal);
+    renderRevisionMarkup(formal,{force});
   } catch (e) {
     el.revisionSummary.textContent = 'Draft 變更統計將於完成修訂時計算';
   }
@@ -44,11 +48,14 @@ export function refreshDraftStats() {
 let statsTimer = null;
 export function initDraftTracking() {
   let composing=false;
-  el.doc.addEventListener('compositionstart',()=>{ composing=true; clearTimeout(statsTimer); });
-  el.doc.addEventListener('compositionend',()=>{ composing=false; refreshDraftStats(); });
+  el.doc.addEventListener('compositionstart',()=>{ composing=true;state.composing=true; clearTimeout(statsTimer); });
+  el.doc.addEventListener('compositionend',()=>{ composing=false;state.composing=false; refreshDraftStats(true); });
+  el.doc.addEventListener('edoc-markup-invalidated',()=>{clearTimeout(statsTimer);if(!composing)statsTimer=setTimeout(refreshDraftStats,150);});
   el.doc.addEventListener('input', () => {
     clearTimeout(statsTimer);
-    if(!composing) statsTimer = setTimeout(refreshDraftStats, 150);
+    // Wait for the native edit/undo transaction to finish, but restore
+    // comparison fragments before painting rather than after a 150 ms gap.
+    if(!composing) queueMicrotask(()=>{if(!state.composing)refreshDraftStats();});
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraftNow, 600);
   });
@@ -61,15 +68,18 @@ export function downloadBackup(revision) {
 }
 
 // Starts a Draft; a draft saved in this browser on the same base version is resumed.
-export async function startRevision() {
+export async function startRevision(options={}) {
+  if(state.session?.policy?.enabled){await refreshCapabilities();if(!capability('propose'))return;}
+  state.privateView=null;el.versionCard.hidden=false;
   if (!state.session) return;
   const base = latestVersion();
   const saved = savedDraft();
   const resume = saved && saved.baseVersion === base ? saved : null;
   state.activeRevision = {
-    id: 'rev-' + Date.now(), label: 'Draft', baseVersion: base, baseHash: await ensureHash(base),
+    id: 'rev-' + Date.now(), label: 'Draft', baseVersion: base, baseHash: state.session.policy?.enabled ? await sha256(prepareSuggestionContent(cleanSnapshot(state.versions[base].html))) : await ensureHash(base),
     author: state.session.name, role: '', summary: '', createdAt: nowISO(), status: 'draft',
-    html: resume ? sanitizeRevisionHtml(resume.html) : cleanSnapshot(sanitizeRevisionHtml(state.versions[base].html)),
+    sourceSuggestionId:options.sourceSuggestionId||resume?.sourceSuggestionId,sourceItemIds:options.sourceItemIds||resume?.sourceItemIds,suggestionRequest:resume?.suggestionRequest,
+    html: options.html || (resume ? sanitizeRevisionHtml(resume.html) : cleanSnapshot(sanitizeRevisionHtml(state.versions[base].html))),
     documentId: state.docState.documentId,
   };
   state.revisions.push(state.activeRevision);
@@ -81,6 +91,7 @@ export async function startRevision() {
   if (resume) {
     showNotice(`已恢復你上次未完成的修訂（${localDateTime(resume.savedAt)} 暫存）`, [{ label: '捨棄', onClick: () => discardRevision() }]);
   }
+  return state.activeRevision;
 }
 
 // A saved draft whose base is no longer the latest version cannot be resumed automatically.
@@ -126,8 +137,10 @@ async function publishFailed(error, revision) {
 export async function finishRevision() {
   const r = state.activeRevision;
   if (!r || !state.session) return;
-  r.html = el.doc.innerHTML;
-  const base = latestVersion();
+  r.html = draftSurfaceHtml();saveDraftNow();
+  if(state.session.policy?.enabled){await refreshCapabilities();if(!capability('propose')){showNotice('提出修訂權限已調整；草稿已保留。',[], 'warn');return;}}
+  if(state.session?.policy?.enabled)return submitActiveDraft();
+  const base = r.baseVersion;
   const key = nextVersion(base);
   // The formal diff is recomputed from the base snapshot and the draft snapshot.
   const html = buildFormalDiff(state.versions[base].html, r.html);

@@ -1,5 +1,5 @@
-const IDS=['doc','versionButton','versionLabel','versionMenu','versionControl','toggleChanges','barRow','editGroup',
-  'whoChip','stateChip','newRevisionBtn','finishRevisionBtn','discardRevisionBtn','shareUrlBtn','copyBtn','pdfBtn',
+const IDS=['suggestionsBtn','permissionsBtn','doc','versionButton','versionLabel','versionMenu','versionControl','toggleChanges','barRow','editGroup',
+  'whoChip','publishSuggestionBtn','stateChip','newRevisionBtn','finishRevisionBtn','discardRevisionBtn','shareUrlBtn','copyBtn','pdfBtn',
   'notice','noticeText','noticeActions','versionCard','cardTitle','compareBadge','statusBadge','publishBadge',
   'cardSummary','cardMeaning','publishNote','versionHash','changeDetails','detailList','revisionPanel','revisionBase',
   'revisionSummary','revisionMeta','revisionHash','dialog','dialogTitle','dialogSummary','dialogNote','dialogActions'];

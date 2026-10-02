@@ -10,8 +10,8 @@ const CONTAINER_SELECTOR='ul,ol,table,thead,tbody,tfoot,tr';
 const EMPTY_REMOVABLE='h1,h2,p,li,blockquote';
 const PAIR_THRESHOLD=0.5;
 
-export function normalizeSnapshot(html) {
-  const w=inertContainer(cleanSnapshot(html));
+export function normalizeSnapshot(html, context) {
+  const w=inertContainer(cleanSnapshot(html, context), context);
   w.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable'));
   // Browsers keep computed styles as inline style / <font> wrappers when merging blocks.
   w.querySelectorAll('[style]').forEach(x=>{
@@ -22,10 +22,10 @@ export function normalizeSnapshot(html) {
   // Chrome / Safari create <div> paragraphs; the document model uses <p>.
   w.querySelectorAll('div').forEach(d=>{
     if(d.querySelector(ALIGN_SELECTOR+','+CONTAINER_SELECTOR+',div')){ unwrapElement(d); return; }
-    const p=document.createElement('p'); p.append(...d.childNodes); d.replaceWith(p);
+    const p=w.ownerDocument.createElement('p'); p.append(...d.childNodes); d.replaceWith(p);
   });
   [...w.childNodes].forEach(n=>{
-    if(n.nodeType===3 && n.textContent.trim()){ const p=document.createElement('p'); n.replaceWith(p); p.append(n); }
+    if(n.nodeType===3 && n.textContent.trim()){ const p=w.ownerDocument.createElement('p'); n.replaceWith(p); p.append(n); }
   });
   // A trailing <br> is only a caret placeholder.
   w.querySelectorAll('br').forEach(br=>{
@@ -51,7 +51,7 @@ export function blockSignature(block){
     const keep=(x.tagName==='IMG' && (a.name==='src'||a.name==='alt')) || (x.tagName==='A' && a.name==='href');
     if(!keep) x.removeAttribute(a.name);
   }));
-  const tw=document.createTreeWalker(c,NodeFilter.SHOW_TEXT); let n;
+  const tw=c.ownerDocument.createTreeWalker(c,4); let n;
   while((n=tw.nextNode())) n.textContent=n.textContent.replace(/\s+/g,' ');
   return block.tagName+'|'+c.innerHTML.replace(/\s+/g,' ').trim();
 }
@@ -63,9 +63,9 @@ function tokenKey(t){ return /^\s+$/.test(t) ? ' ' : t; }
 function tokenKeys(text){ return diffTokens(text).map(tokenKey).filter(k=>k!==' '); }
 // Token LCS diff. Whitespace runs compare equal; '=' and '+' carry the new text,
 // '-' carries the old text; within a change run deletions come before insertions.
-export function diffOps(aText,bText) {
+export function diffOps(aText,bText, { exactWhitespace=false } = {}) {
   const a=diffTokens(aText), b=diffTokens(bText);
-  const ak=a.map(tokenKey), bk=b.map(tokenKey);
+  const ak=exactWhitespace?a:a.map(tokenKey), bk=exactWhitespace?b:b.map(tokenKey);
   const n=a.length,m=b.length;
   const dp=Array.from({length:n+1},()=>new Uint16Array(m+1));
   for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--)
@@ -130,15 +130,15 @@ export function inlineDiffBlock(baseBlock,curBlock) {
       push(ni,mode,rest.slice(0,take)); off+=take; rest=rest.slice(take);
     }
   }
-  const mark=(mode,t)=>{ const sp=document.createElement('span'); sp.className=mode==='+'?'changed':'deleted'; sp.textContent=t; return sp; };
+  const mark=(mode,t)=>{ const sp=curBlock.ownerDocument.createElement('span'); sp.className=mode==='+'?'changed':'deleted'; sp.textContent=t; return sp; };
   let changed=false;
   nodes.forEach((node,i)=>{
     // Whitespace-only insertions stay plain text; whitespace-only deletions are dropped.
     const s=segs[i].filter(([m,t])=>m!=='-'||t.trim()).map(([m,t])=>[m==='+'&&!t.trim()?'=':m,t]);
     if(!s.some(([m])=>m!=='=')) return;
     changed=true;
-    const frag=document.createDocumentFragment();
-    for(const [m,t] of s) frag.appendChild(m==='=' ? document.createTextNode(t) : mark(m,t));
+    const frag=curBlock.ownerDocument.createDocumentFragment();
+    for(const [m,t] of s) frag.appendChild(m==='=' ? curBlock.ownerDocument.createTextNode(t) : mark(m,t));
     node.replaceWith(frag);
   });
   const leadText=lead.join('');
@@ -146,9 +146,9 @@ export function inlineDiffBlock(baseBlock,curBlock) {
   return changed;
 }
 
-export function buildFormalDiff(baseHtml,currentHtml) {
-  const baseWrap=normalizeSnapshot(baseHtml);
-  const curWrap=normalizeSnapshot(currentHtml);
+export function buildFormalDiff(baseHtml,currentHtml, context) {
+  const baseWrap=normalizeSnapshot(baseHtml, context);
+  const curWrap=normalizeSnapshot(currentHtml, context);
   const baseBlocks=[...baseWrap.querySelectorAll(ALIGN_SELECTOR)];
   const curBlocks=[...curWrap.querySelectorAll(ALIGN_SELECTOR)];
   const baseSig=baseBlocks.map(blockSignature), curSig=curBlocks.map(blockSignature);
@@ -190,7 +190,7 @@ export function buildFormalDiff(baseHtml,currentHtml) {
   const addedWhole=new Set();
   const wrapOwnText=el=>ownedTextNodes(el).forEach(t=>{
     if(!t.textContent.trim()) return;
-    const sp=document.createElement('span'); sp.className='changed'; t.replaceWith(sp); sp.appendChild(t);
+    const sp=curWrap.ownerDocument.createElement('span'); sp.className='changed'; t.replaceWith(sp); sp.appendChild(t);
   });
   curBlocks.forEach((el,j)=>{
     const keepsDescendant=()=>[...el.querySelectorAll(ALIGN_SELECTOR)].some(d=>match.has(curIndex.get(d)));
@@ -267,8 +267,8 @@ export function sectionNameFor(el,root){
   }
   return '其他';
 }
-export function analyzeFormalDiff(formalHtml){
-  const wrap=inertContainer(formalHtml);
+export function analyzeFormalDiff(formalHtml, context){
+  const wrap=inertContainer(formalHtml, context);
   const sectionStats=new Map();
   let addedChars=0,deletedChars=0,modifiedBlocks=0,addedBlocks=0,deletedBlocks=0;
   const count=t=>t.replace(/\s+/g,'').length;

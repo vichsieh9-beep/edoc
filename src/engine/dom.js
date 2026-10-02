@@ -4,16 +4,16 @@ export const BLOCK_SELECTOR='h1,h2,p,li,td,th,blockquote';
 // Stored versions can come from any edit-link holder, so html is always parsed in an inert
 // document: images do not load, scripts do not run and event handlers never fire.
 let inertDocument=null;
-export function inertContainer(html) {
-  inertDocument=inertDocument||document.implementation.createHTMLDocument('');
-  const div=inertDocument.createElement('div');
+export function inertContainer(html, context) {
+  const doc=context?.document || (inertDocument=inertDocument||document.implementation.createHTMLDocument(''));
+  const div=doc.createElement('div');
   div.innerHTML=html;
   return div;
 }
 
 // Content only: drop diff marks, draft tombstones and block ids.
-export function cleanSnapshot(html) {
-  const tmp = inertContainer(html);
+export function cleanSnapshot(html, context) {
+  const tmp = inertContainer(html, context);
   tmp.querySelectorAll('.deleted,.deletion-record').forEach(x=>x.remove());
   tmp.querySelectorAll('.changed,.revision-changed').forEach(x=>{x.classList.remove('changed','revision-changed'); if(!x.className)x.removeAttribute('class');});
   tmp.querySelectorAll('[data-edoc-block]').forEach(x=>x.removeAttribute('data-edoc-block'));
@@ -28,7 +28,7 @@ export function normalizeWs(t){ return t.replace(/\s+/g,' ').trim(); }
 // Text nodes whose nearest block is `block` itself (nested blocks own their own text).
 export function ownedTextNodes(block) {
   const out=[];
-  const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
+  const walker=block.ownerDocument.createTreeWalker(block,4);
   let n;
   while((n=walker.nextNode())){
     let p=n.parentElement, owner=null;

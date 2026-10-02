@@ -9,6 +9,7 @@ import { isPublished, shareableUrl } from '../engine/publish.js';
 
 async function copyContent() {
   // Only the latest wording: deletions and change marks are left out.
+  if(state.privateView){alert('請返回正式版，再複製正式全文。');return;}
   const html = state.activeRevision ? cleanSnapshot(el.doc.innerHTML) : cleanSnapshot(state.versions[state.activeVersion].html);
   const rich = clipboardHtml(sanitizeRevisionHtml(html));
   const plain = toPlainText(rich);
@@ -27,12 +28,13 @@ async function copyContent() {
 
 export function updatePdfLink() {
   const v = state.activeVersion, drafting = !!state.activeRevision;
-  const ok = !drafting && (state.meta.pdfVersions || []).includes(v);
+  const ok = !state.privateView && !drafting && (state.meta.pdfVersions || []).includes(v);
   el.pdfBtn.classList.toggle('disabled', !ok);
   el.pdfBtn.setAttribute('aria-disabled', String(!ok));
   el.pdfBtn.setAttribute('href', ok ? `pdf/${v}.pdf` : '#');
   el.pdfBtn.setAttribute('download', `${state.meta.title}_${v}.pdf`);
-  el.pdfBtn.title = drafting ? '完成修訂後才會有新版本的 PDF' : ok ? '' : '這個版本的 PDF 會在公開網址更新後產生';
+  el.copyBtn.disabled=!!state.privateView;
+  el.pdfBtn.title = state.privateView ? '修訂建議與私人預覽沒有官方 PDF' : drafting ? '完成修訂後才會有新版本的 PDF' : ok ? '' : '這個版本的 PDF 會在公開網址更新後產生';
 }
 
 export function initShare() {

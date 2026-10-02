@@ -25,7 +25,7 @@ export function renderPublishState(v) {
   el.publishBadge.classList.toggle('live', live);
   el.publishNote.classList.toggle('live', live);
   el.publishNote.textContent = live
-    ? '公開網址已更新，可以用 LINE 通知對方了。'
+    ? p.verifyPdf&&!p.pdfReady?'公開網址已更新，PDF 仍在產生；完成後即可下載。':'公開網址已更新，可以用 LINE 通知對方了。'
     : p.status === 'timeout'
       ? '已存進正式文件，但還沒偵測到公開網址更新；請稍後重新整理確認。'
       : '已存進正式文件，公開網址更新中（約 2～3 分鐘）。這個頁面可以先關掉，不影響發布。';
@@ -33,17 +33,15 @@ export function renderPublishState(v) {
 
 async function poll() {
   const p = state.publishing;
-  if (!p || p.status !== 'publishing') return;
+  if (!p || (p.status !== 'publishing' && !(p.verifyPdf&&p.status==='live'&&!p.pdfReady))) return;
   try {
     const live = await latestOnSite();
     if (live && num(live) >= num(p.version)) {
       p.status = 'live';
-      // Deployment produces a PDF for every formal version, including this new one.
-      state.meta.pdfVersions ||= [];
-      if (!state.meta.pdfVersions.includes(p.version)) state.meta.pdfVersions.push(p.version);
-      updatePdfLink();
-      renderPublishState(state.activeVersion);
-      return;
+      if(p.verifyPdf){const res=await fetch(`pdf/${p.version}.pdf?edoc-check=${Date.now()}`,{method:'HEAD',cache:'no-store'});p.pdfReady=res.ok&&(res.headers.get('Content-Type')||'').includes('application/pdf');}else p.pdfReady=true;
+      if(p.pdfReady){state.meta.pdfVersions ||= [];if (!state.meta.pdfVersions.includes(p.version)) state.meta.pdfVersions.push(p.version);}
+      updatePdfLink();renderPublishState(state.activeVersion);
+      if(p.pdfReady){p.onComplete?.();return;}
     }
   } catch {}
   if (Date.now() - p.since > TIMEOUT_MS) {
@@ -54,8 +52,8 @@ async function poll() {
   setTimeout(poll, POLL_MS());
 }
 
-export function markPublishing(version) {
-  state.publishing = { version, status: 'publishing', since: Date.now() };
+export function markPublishing(version,{verifyPdf=false,onComplete=null}={}) {
+  state.publishing = { version, status: 'publishing', since: Date.now(),verifyPdf,pdfReady:false,onComplete };
   setTimeout(poll, POLL_MS());
 }
 
