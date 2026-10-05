@@ -81,7 +81,7 @@ test('publishing appends exactly one version to GitHub, attributed to the link h
   expect(dialogs.gh.commits[0].message).toBe(`Add v0.8 to qa-senior-game-qa by ${TEST_NAME} via EDoc`);
   // The same hash is shown to everyone: it is computed from the stored html.
   await expect(page.locator('#versionHash')).toHaveText(/SHA-256：[0-9a-f]{64}/);
-  await expect(page.locator('#publishBadge')).toHaveText('發布中…');
+  await expect(page.locator('#publishBadge')).toHaveText('已儲存・網站更新中');
   const d = await renderedDiff(page);
   expect(d.blue).toBe('嚴謹');
 });
@@ -170,7 +170,7 @@ test('a newer published version is announced with a reload button', async ({ pag
   });
   await openDoc(page, { edit: false });
   await expect(page.locator('#notice')).toContainText('已經有更新的版本 v0.9');
-  await expect(page.locator('#noticeActions button')).toHaveText('重新整理');
+  await expect(page.locator('#noticeActions button')).toHaveText('載入最新版');
 });
 
 test('複製全文 copies the latest wording with its structure, never deleted text', async ({ page, context, browserName }) => {

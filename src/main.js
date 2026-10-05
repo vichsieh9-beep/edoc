@@ -22,7 +22,7 @@ import { applyCleanState, renderVersion } from './ui/version-view.js';
 import { captureEditToken, checkAccess } from './ui/access.js';
 import { renderEditBar } from './ui/edit-bar.js';
 import { showNotice } from './ui/notice.js';
-import { checkForNewerVersion } from './ui/publish-status.js';
+import { checkForNewerVersion, resumePublishing } from './ui/publish-status.js';
 
 el.suggestionsBtn.addEventListener('click',openSuggestionList);
 el.permissionsBtn.addEventListener('click',()=>openSharingPermissions({doc:{slug:state.meta.slug,title:state.meta.title},session:state.session,api:collaborationApi,onChanged:refreshCapabilities}));
@@ -64,6 +64,7 @@ el.discardRevisionBtn.addEventListener('click',()=>discardRevision());
 (async()=>{
   for(const v of versionOrder(state.versions)) await ensureHash(v);
   await renderVersion(latestVersion());
+  resumePublishing();
   const newer=await checkForNewerVersion();
   await checkAccess();
   renderEditBar();

@@ -208,7 +208,16 @@
       "previous": "v1.1",
       "html": "<h1>【QA】資深遊戲測試工程師<span class=\"deleted\"> (Senior Game QA Engineer)</span></h1><p class=\"changed\">(Senior Game QA Engineer)</p><h2>【職務簡述】</h2><ul><li>負責 iGaming 遊戲、後台及第三方串接功能<span>的品質驗證</span>。</li><li>依遊戲規則與產品需求規劃測試，涵蓋正常操作、異常狀況及玩家體驗。</li><li>執行功能、系統串接及修正後的測試，確認不同裝置、瀏覽器與連線狀況下的表現。</li><li>記錄問題、整理重現方式與證據，追蹤修正直到驗證完成。</li><li>與企劃、美術、程式合作，及早提出<span class=\"changed\">測試需求、</span>品質風險與改善建議。</li><li>運用生成式 AI 協助分析需求、設計測試及整理問題，提升<span>工作</span>效率。</li></ul><h2>【期望特質】</h2><ul><li><strong>思路清楚：</strong>能拆解複雜問題，抓住重點與原因。</li><li><strong>追根究底：</strong>主動查證問題，對結果與品質負責。</li><li><strong>具遊戲敏感度：</strong>能從玩家角度發現操作與體驗上的問題。</li><li><strong>溝通<span>務實</span>：</strong>清楚說明問題，<span>與團隊</span>共同<span>推進</span>解決。</li></ul><h2 class=\"\">【需求條件】</h2><ul><li>具<span> Mini Games、Slot Games </span>或<span>視訊</span>遊戲 QA 實務經驗，<span>曾</span>獨立負責專案測試。</li><li class=\"\">有自行規劃測試、撰寫測試案例及整理測試報告的經驗。</li><li>能使用瀏覽器開發工具、紀錄檔及基本 API 資料協助定位問題。</li><li>有問題追蹤與分級經驗，能依影響程度安排處理順序。</li><li><strong>具完整的生成式 AI 協作實作經驗，能說明從問題分析、工具使用到成果驗證的實際流程。</strong></li></ul><h2 class=\"\">【加分項目】</h2><ul><li>曾處理網路不穩、斷線重連、影音同步或第三方串接問題。</li><li>具資料查詢、版本管理、程式撰寫或自動化測試經驗。</li><li>曾建立可重複使用的 AI 測試流程，並有具體改善成果。</li></ul>",
       "uiChanges": [],
-      "aiSummary": null
+      "aiSummary": {
+        "summary": "將英文職稱獨立為較小副標，並在跨部門合作職責中加入提出測試需求。",
+        "details": [
+          "標題：將英文職稱移至獨立副標，中文主標保留。",
+          "職務簡述：在與企劃、美術、程式合作的內容中加入提出測試需求。"
+        ],
+        "model": "gpt-6",
+        "generatedAt": "2026-10-05T06:57:41.618Z",
+        "contentHash": "157dbb724f844166b6bf991beff74cbad303f76f0212adb106966e5237c8207f"
+      }
     }
   }
 }
