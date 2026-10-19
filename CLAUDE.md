@@ -22,7 +22,7 @@ official output is the system-generated A4 PDF of each version.
 
 Since 2026-09-29 (engine R2.8) the site is a library of documents. Vic's admin link
 (`<site>/#edit=<token>`, role `admin`) manages it from the Library page: create a document
-(blank, copy, pasted text or Word .docx converted in the browser), rename (name only: no new
+(blank, copy, pasted text, or a Word .docx or PDF converted in the browser), rename (name only: no new
 version, same address), archive / restore, and create or revoke per-document edit links.
 New documents get a generated address (`documents/d-xxxx/`). Archiving keeps every version;
 the page only says it is archived. There is no hard delete from the web: the repo is public,

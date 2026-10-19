@@ -7,6 +7,7 @@ import { callApi, takeEditToken, LIBRARY_TOKEN_KEY } from './ui/api.js';
 import { isPublished } from './engine/publish.js';
 import { normalizeImportedHtml, textToHtml } from './engine/import.js';
 import { docxToHtml } from './engine/docx.js';
+import { pdfToHtml } from './engine/pdf.js';
 import { rowsHtml } from './library/rows.js';
 import { h, openModal } from './library/modal.js';
 import { openCreateDialog } from './library/create.js';
@@ -22,7 +23,7 @@ const today = () => displayDate(new Date());
 const docBySlug = (slug) => data.docs.find((d) => d.slug === slug);
 
 // Stable surface for tests and tooling.
-window.EDocLibrary = { docxToHtml, normalizeImportedHtml, textToHtml, get docs() { return data.docs; } };
+window.EDocLibrary = { docxToHtml, pdfToHtml, normalizeImportedHtml, textToHtml, get docs() { return data.docs; } };
 
 function notice(message, kind = 'info', link = null) {
   const box = $('notice');

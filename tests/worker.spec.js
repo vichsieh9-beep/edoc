@@ -167,13 +167,15 @@ test('create: a taken address is skipped', async () => {
   expect(gh.read('documents/d-aaaa/document.json').documentId).toBe('d-aaaa');
 });
 
-test('create: copy names its source version, Word names its file; bad input is refused', async () => {
+test('create: copy names its source version, Word and PDF name their file; bad input is refused', async () => {
   const gh = createFakeGithub();
   const copy = await admin(gh, '/documents', { title: '複本', method: 'copy', html: '<h1>複本</h1>', source: { doc: 'qa-senior-game-qa', version: 'v0.7' } });
   expect(copy.status).toBe(201);
   expect(gh.read(`documents/${copy.body.slug}/document.json`).versions['v0.1'].summary).toBe('建立文件：複製現有文件（【QA】資深遊戲測試工程師 v0.7）');
   const word = await admin(gh, '/documents', { title: 'GDD', method: 'docx', html: '<h1>GDD</h1><p>x</p>', fileName: 'Mini Game.docx' });
   expect(gh.read(`documents/${word.body.slug}/document.json`).versions['v0.1'].details[0]).toBe('建立方式：上傳 Word（Mini Game.docx）');
+  const pdf = await admin(gh, '/documents', { title: '規格', method: 'pdf', html: '<h1>規格</h1><p>x</p>', fileName: '規格書.pdf' });
+  expect(gh.read(`documents/${pdf.body.slug}/document.json`).versions['v0.1'].details[0]).toBe('建立方式：上傳 PDF（規格書.pdf）');
   const bad = [
     { title: '', method: 'blank', html: '<h1>x</h1>' },
     { title: '字'.repeat(81), method: 'blank', html: '<h1>x</h1>' },
@@ -181,12 +183,13 @@ test('create: copy names its source version, Word names its file; bad input is r
     { title: 'x', method: 'upload', html: '<h1>x</h1>' },
     { title: 'x', method: 'blank', html: ' ' },
     { title: 'x', method: 'docx', html: '<h1>x</h1>' },
+    { title: 'x', method: 'pdf', html: '<h1>x</h1>' },
     { title: 'x', method: 'copy', html: '<h1>x</h1>', source: { doc: 'qa-senior-game-qa', version: 'v9.9' } },
     { title: 'x', method: 'blank', html: 'x'.repeat(1_000_001) },
   ];
   for (const body of bad) expect((await admin(gh, '/documents', body)).status, JSON.stringify(body).slice(0, 80)).toBe(400);
   expect((await admin(gh, '/documents', { title: 'x', method: 'copy', html: '<h1>x</h1>', source: { doc: 'nope', version: 'v0.1' } })).status).toBe(404);
-  expect(gh.commits).toHaveLength(2);
+  expect(gh.commits).toHaveLength(3);
 });
 
 test('create: at most 10 new documents per hour', async () => {

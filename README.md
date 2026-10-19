@@ -17,7 +17,7 @@ Library with management controls: new documents, rename, archive / restore, and 
 documents/<slug>/document.json   content SSOT: every formal version (append-only)
 edit-links.json                  edit links (SHA-256 of each token only)
 edoc.config.json                 public site URL and publish API URL
-src/engine/                      diff, changes, ai-summary, revision (html filtering), import + docx (new documents), text, hash, version, publish, meta (R2.x)
+src/engine/                      diff, changes, ai-summary, revision (html filtering), import + docx + pdf (new documents), text, hash, version, publish, meta (R2.x)
 src/ui/                          document page: header, edit access, draft + publishing, version view, sharing, styles.css
 src/library.js, src/library/     Library page: rows, dialogs (new document, share), styles.css
 templates/                       HTML shells for documents, archived documents and the Library
@@ -56,7 +56,7 @@ Engine changes that reach `main` bump `ENGINE_VERSION` in `src/engine/meta.js` (
    `document.json` on GitHub; CI rebuilds and redeploys (about 2–3 minutes), then the page shows ✓ 已上線.
 4. Stop a link: 分享 → 停用 (or `npm run edit-link -- revoke <id>`, push). Admin links: terminal only.
 
-New documents (空白、複製、貼上文字、上傳 Word) get the address `documents/d-xxxx/` and appear
+New documents (空白、複製、貼上文字、上傳 Word／PDF) get the address `documents/d-xxxx/` and appear
 after the next deploy. Archived documents leave the Library and their page only says so; every
 version stays in `document.json` (and in the public git history).
 

@@ -198,6 +198,15 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
   };
   collect(body);
 
+  return { html: blocksToHtml(blocks, report, title), report };
+}
+
+/**
+ * Blocks → EDoc html, shared by the Word and PDF importers. A block is a heading (level: 0 for a
+ * title, 1… for heading sizes), a list item (ilvl, tag ul/ol), a paragraph or a ready-made table.
+ * Counts headings, paragraphs and list items into `report`.
+ */
+export function blocksToHtml(blocks, report, title = '') {
   // EDoc has one title (h1) and one section level (h2). A single top-level heading at the very
   // start is the title; otherwise the top level becomes sections and the document name the title.
   const levels = blocks.filter((b) => b.type === 'heading').map((b) => b.level);
@@ -234,6 +243,5 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
     } else out.push(b.html);
   }
   closeAll();
-  const { html } = normalizeImportedHtml(out.join(''), { title });
-  return { html, report };
+  return normalizeImportedHtml(out.join(''), { title }).html;
 }

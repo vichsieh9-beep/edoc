@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { enablePublishing, PUBLISH_API } from './publish-mock.js';
 import { createFakeGithub, ADMIN_TOKEN, ADMIN_NAME, TEST_TOKEN, TEST_NAME } from './fake-github.js';
 import { sampleDocx } from './docx-fixture.js';
+import { closePdfBrowser, htmlToPdf, sampleBody, scanBody } from './pdf-fixture.js';
 
 const QA = 'qa-senior-game-qa';
 const row = (page, text) => page.locator('#list .row', { hasText: text });
@@ -17,6 +18,7 @@ async function openLibrary(page, { gh = createFakeGithub(), token = ADMIN_TOKEN 
   if (token === ADMIN_TOKEN) await expect(page.locator('#who')).toHaveText('管理員・' + ADMIN_NAME);
   return gh;
 }
+test.afterAll(closePdfBrowser);
 const created = (gh) => gh.paths().filter((p) => /^documents\/d-[a-z0-9]{4}\/document\.json$/.test(p));
 
 test('visitors see the listed documents with version and last update, can search, and get no admin controls', async ({ page }) => {
@@ -134,19 +136,20 @@ test('新增文件 · 貼上文字: nothing pasted is refused', async ({ page })
   expect(created(gh)).toHaveLength(0);
 });
 
-test('新增文件 · 上傳 Word: converted in the browser, report and preview first, then v0.1', async ({ page }) => {
+test('新增文件 · 上傳 Word／PDF: a Word file is converted in the browser, report and preview first, then v0.1', async ({ page }) => {
   const gh = await openLibrary(page);
   const uploads = [];
   page.on('request', (r) => { if (r.method() === 'POST') uploads.push(r.postData() || ''); });
   await page.locator('#newBtn').click();
-  await page.locator('.seg [data-method="docx"]').click();
-  await page.locator('#docxInput').setInputFiles({ name: 'Mini Game 規格書.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: sampleDocx() });
-  await expect(page.locator('#docxReport')).toContainText('標題 3 個、段落 3 段、條列 5 項');
-  await expect(page.locator('#docxReport .warn')).toHaveText([
+  await expect(page.locator('.seg [data-method="file"]')).toHaveText('上傳 Word／PDF');
+  await page.locator('.seg [data-method="file"]').click();
+  await page.locator('#fileInput').setInputFiles({ name: 'Mini Game 規格書.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: sampleDocx() });
+  await expect(page.locator('#fileReport')).toContainText('標題 3 個、段落 3 段、條列 5 項');
+  await expect(page.locator('#fileReport .warn')).toHaveText([
     '表格 1 個：保留內容與合併儲存格，框線、底色改用 EDoc 樣式', '圖片 1 張：第一版不匯入', '文字方塊 1 個：未匯入',
     '頁首頁尾：未匯入', '註解 2 則：未匯入', '追蹤修訂 2 處：以目前顯示的文字匯入，修訂標記不保留',
   ]);
-  await expect(page.locator('#docxPreview h2')).toHaveText('玩法說明');
+  await expect(page.locator('#filePreview h2')).toHaveText('玩法說明');
   await expect(page.locator('#newName')).toHaveValue('Mini Game 規格書');
   await page.locator('[data-action="create"]').click();
   await expect(page.locator('.modal')).toHaveCount(0);
@@ -157,12 +160,40 @@ test('新增文件 · 上傳 Word: converted in the browser, report and preview 
   expect(uploads.some((b) => b.includes('word/document.xml') || b.includes('PK'))).toBe(false);
 });
 
-test('新增文件 · 上傳 Word: a non-.docx file is refused', async ({ page }) => {
-  await openLibrary(page);
+test('新增文件 · 上傳 Word／PDF: a PDF is converted in the browser, report and preview first, then v0.1', async ({ page }) => {
+  const gh = await openLibrary(page);
+  const uploads = [];
+  page.on('request', (r) => { if (r.method() === 'POST') uploads.push(r.postData() || ''); });
+  const pdf = await htmlToPdf(sampleBody(), { header: 'Mini Game 規格書 · 內部文件' });
   await page.locator('#newBtn').click();
-  await page.locator('.seg [data-method="docx"]').click();
-  await page.locator('#docxInput').setInputFiles({ name: '舊檔.doc', mimeType: 'application/msword', buffer: Buffer.from('x') });
-  await expect(page.locator('.modal .error')).toContainText('只支援 Word 的 .docx 檔');
+  await page.locator('.seg [data-method="file"]').click();
+  await page.locator('#fileInput').setInputFiles({ name: 'Mini Game 規格書.pdf', mimeType: 'application/pdf', buffer: pdf });
+  await expect(page.locator('#fileReport li').first()).toHaveText('共 2 頁：標題 3 個、段落 4 段、條列 5 項');
+  await expect(page.locator('#fileReport .warn')).toHaveText(['頁首頁尾與頁碼 4 行：未匯入', '表格與多欄排版會變成一般段落，請對照下方預覽']);
+  await expect(page.locator('#filePreview h2').first()).toHaveText('玩法說明');
+  await expect(page.locator('#newName')).toHaveValue('Mini Game 規格書');
+  await page.locator('[data-action="create"]').click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const v01 = gh.read(created(gh)[0]).versions['v0.1'];
+  expect(v01.html.startsWith('<h1>Mini Game 規格書</h1>\n<h2>玩法說明</h2>\n<p>每局 <strong>3 rounds</strong>')).toBe(true);
+  expect(v01.details[0]).toBe('建立方式：上傳 PDF（Mini Game 規格書.pdf）');
+  // Only the converted html left the browser, never the PDF itself.
+  expect(uploads.some((b) => b.includes('%PDF-'))).toBe(false);
+});
+
+test('新增文件 · 上傳 Word／PDF: other files and scans are refused with a clear message', async ({ page }) => {
+  const gh = await openLibrary(page);
+  await page.locator('#newBtn').click();
+  await page.locator('.seg [data-method="file"]').click();
+  await page.locator('#fileInput').setInputFiles({ name: '舊檔.doc', mimeType: 'application/msword', buffer: Buffer.from('x') });
+  await expect(page.locator('.modal .error')).toContainText('只支援 Word 的 .docx 檔與 PDF');
+  await page.locator('#fileInput').setInputFiles({ name: '掃描.pdf', mimeType: 'application/pdf', buffer: await htmlToPdf(scanBody) });
+  await expect(page.locator('.modal .error')).toContainText('沒有文字層');
+  await expect(page.locator('#fileReport')).toBeHidden();
+  await page.locator('#newName').fill('掃描');
+  await page.locator('[data-action="create"]').click();
+  await expect(page.locator('.modal .error')).toHaveText('請先選擇 Word 或 PDF 檔。');
+  expect(created(gh)).toHaveLength(0);
 });
 
 test('改名 changes the name only', async ({ page }) => {

@@ -35,7 +35,7 @@ const VERSION = /^v\d+\.\d$/;
 const EDITOR = '編輯者：';
 const CREATED = '建立時間：';
 const CREATE_COMMIT = 'Create document ';
-const METHODS = { blank: '空白文件', copy: '複製現有文件', paste: '貼上文字', docx: '上傳 Word' };
+const METHODS = { blank: '空白文件', copy: '複製現有文件', paste: '貼上文字', docx: '上傳 Word', pdf: '上傳 PDF' };
 const RETRY = '剛好有人同時更新，請重新整理後再試一次。';
 
 
@@ -160,7 +160,7 @@ async function session({ body, link }) {
 
 const validHtml = (html) => typeof html === 'string' && !!html.trim() && html.length <= MAX_HTML;
 
-// New document: the page prepares the html (blank title, copied, pasted or converted from Word);
+// New document: the page prepares the html (blank title, copied, pasted or converted from Word or PDF);
 // the Worker picks the address and stores it as v0.1.
 async function createDocument({ body, link, gh, now, random }) {
   requireAdmin(link);
@@ -176,7 +176,7 @@ async function createDocument({ body, link, gh, now, random }) {
       throw new HttpError(400, 'bad_request', '來源版本錯誤');
     }
     how += `（${from.title} ${source.version}）`;
-  } else if (method === 'docx') {
+  } else if (method === 'docx' || method === 'pdf') {
     how += `（${cleanText(body.fileName, 200, '檔名')}）`;
   }
   const since = new Date(now - 3600_000).toISOString();
