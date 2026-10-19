@@ -145,7 +145,11 @@ function dropRunningText(pages) {
   return dropped;
 }
 
-/** The most common text size, weighted by text length: the body size. Bold lines (mostly headings) only count when nothing else does. */
+/**
+ * The body size: the smallest text size with at least half the text of the most common one
+ * (weighted by text length), so a short document whose headings hold more text than its body
+ * still finds its body. Bold lines (mostly headings) only count when nothing else does.
+ */
 function bodySize(lines) {
   const weight = new Map();
   const plain = lines.filter((l) => l.segs.some((s) => !s.b && s.text.trim()));
@@ -153,7 +157,8 @@ function bodySize(lines) {
     const s = Math.round(l.size * 2) / 2;
     weight.set(s, (weight.get(s) || 0) + l.text.length);
   }
-  return [...weight].sort((a, b) => b[1] - a[1])[0]?.[0] || 12;
+  const most = Math.max(0, ...weight.values());
+  return [...weight].filter(([, w]) => w >= most * 0.5).sort((a, b) => a[0] - b[0])[0]?.[0] || 12;
 }
 
 /** Segments → inline html, without the first `skip` characters (a bullet or "1."). */

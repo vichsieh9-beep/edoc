@@ -45,7 +45,10 @@ test('PDF: bullets drawn as shapes (plain discs) are lists too', async ({ page }
 });
 
 test('PDF: without a single title heading, the document name becomes the title', async ({ page }) => {
-  const { html } = await convert(page, await htmlToPdf('<h2>職務簡述</h2><p>內容一</p><h2>需求條件</h2><p>內容二</p>'), '【QA】新職缺');
+  // Headings not bold and holding more text than the body: only the larger size marks them
+  // (Linux renders CJK bold synthetically, so the font name cannot be relied on there).
+  const body = '<h2 style="font-weight:400">職務簡述</h2><p>內容一</p><h2 style="font-weight:400">需求條件</h2><p>內容二</p>';
+  const { html } = await convert(page, await htmlToPdf(body), '【QA】新職缺');
   expect(html).toBe('<h1>【QA】新職缺</h1>\n<h2>職務簡述</h2>\n<p>內容一</p>\n<h2>需求條件</h2>\n<p>內容二</p>');
 });
 
