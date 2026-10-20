@@ -27,25 +27,51 @@ test('Word: title, sections, lists, bold, links, tables; pictures, comments and 
     '<p>每局 <strong>3 回合</strong>，可選擇<em>加倍</em>。詳見<a href="https://example.com/rules">規則</a>與壞連結。</p>',
     '<ul><li>第一點<ul><li>子項目</li></ul></li><li>第二點</li></ul>',
     '<ol><li>步驟一</li><li>步驟二</li></ol>',
-    '<p><strong>細節</strong></p>',
+    '<h3>細節</h3>',
     '<p>保留新增字</p>',
     '<table><tbody><tr><td colspan="2">合併標題</td></tr><tr><td rowspan="2">跨列</td><td>A</td></tr><tr><td>B<br>C</td></tr></tbody></table>',
     '<p>結尾<br>第二行</p>',
   ].join('\n'));
   expect(report).toEqual({
     headings: 3, paragraphs: 3, listItems: 5, tables: 1, images: 1, textBoxes: 1, trackedChanges: 2, comments: 2, headersFooters: 2,
+    kept: ['標題 3'], dropped: { color: 0, bg: 0, fonts: [], sizes: [] },
   });
 });
 
 test('Word: sections without a title keep the top level as sections and take the document name as title', async ({ page }) => {
   const file = docx([para('職務簡述', { style: '1' }), para('內容一'), para('需求條件', { style: '1' }), para('小節', { style: '2' }), para('內容二')].join(''));
   const { html } = await convert(page, file);
-  expect(html).toBe('<h2>職務簡述</h2>\n<p>內容一</p>\n<h2>需求條件</h2>\n<p><strong>小節</strong></p>\n<p>內容二</p>');
+  expect(html).toBe('<h2>職務簡述</h2>\n<p>內容一</p>\n<h2>需求條件</h2>\n<h3>小節</h3>\n<p>內容二</p>');
   const titled = await normalize(page, html, '【QA】新職缺');
   expect(titled.html.startsWith('<h1>【QA】新職缺</h1>\n<h2>職務簡述</h2>')).toBe(true);
   // A single top heading at the very start is the document's own title.
   const own = await convert(page, docx([para('規格書', { style: '1' }), para('小節', { style: '2' }), para([run('粗', { b: true })])].join('')), '檔名');
   expect(own.html).toBe('<h1>規格書</h1>\n<h2>小節</h2>\n<p><strong>粗</strong></p>');
+});
+
+test('Word keeps the formatting EDoc supports and reports what it could not keep (R2.17)', async ({ page }) => {
+  const r = (text, rPr) => `<w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${text}</w:t></w:r>`;
+  const body = '<w:rFonts w:ascii="Calibri" w:eastAsia="新細明體"/><w:sz w:val="24"/>';
+  const file = docx([
+    para('規格書', { style: '1' }),
+    para('章節', { style: '2' }),
+    `<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${r('置中內文', body)}</w:p>`,
+    `<w:p>${r('一般', body)}${r('底線', body + '<w:u w:val="single"/>')}${r('刪除', body + '<w:strike/>')}${r('2', body + '<w:vertAlign w:val="superscript"/>')}`
+      + `${r('紅字', body + '<w:color w:val="FF0000"/>')}${r('怪色', body + '<w:color w:val="123456"/>')}${r('黃底', body + '<w:highlight w:val="yellow"/>')}`
+      + `${r('楷體', '<w:rFonts w:eastAsia="標楷體"/><w:sz w:val="24"/>')}${r('大字', '<w:rFonts w:eastAsia="新細明體"/><w:sz w:val="36"/>')}`
+      + `${r('怪字級', '<w:rFonts w:eastAsia="新細明體"/><w:sz w:val="27"/>')}${r('怪字型', '<w:rFonts w:eastAsia="華康少女文字W5"/><w:sz w:val="24"/>')}${r('黑字', body + '<w:color w:val="000000"/>')}</w:p>`,
+    para('小節', { style: '3' }),
+    `<w:p>${r('更多內文，讓新細明體 12pt 成為內文字型與字級', body)}</w:p>`,
+  ].join(''), { styles: '<w:style w:type="paragraph" w:styleId="3"><w:name w:val="heading 3"/></w:style>' });
+  const { html, report } = await convert(page, file);
+  expect(html).toContain('<p style="text-align:center">置中內文</p>');
+  expect(html).toContain('一般<u>底線</u><s>刪除</s><sup>2</sup><span style="color:#ff0000">紅字</span>怪色<span style="background-color:#ffff00">黃底</span>');
+  expect(html).toContain(`<span style="font-family:'LXGW WenKai TC','Noto Serif TC',serif">楷體</span><span style="font-size:18pt">大字</span>怪字級怪字型黑字`);
+  expect(html).toContain('<h3>小節</h3>');
+  // 新細明體 12pt is the Word file's body text: the EDoc document font and size are used instead.
+  expect(html).not.toMatch(/Noto Serif TC',serif">[^楷]|font-size:12pt/);
+  expect(report.kept).toEqual(['底線', '刪除線', '上標', '文字色彩', '螢光筆', '字型', '字級', '對齊', '標題 3']);
+  expect(report.dropped).toEqual({ color: 1, bg: 0, fonts: ['華康少女文字W5'], sizes: ['13.5'] });
 });
 
 test('Word: not a .docx, or a broken file, is refused with a clear message', async ({ page }) => {

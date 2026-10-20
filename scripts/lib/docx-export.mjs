@@ -1,10 +1,12 @@
 // Word (.docx) copy of a formal version (R2.16): the clean content with EDoc's formatting
 // (headings, lists, alignment, bold/italic/underline/strikethrough, colours, highlights, fonts,
-// sizes, links, tables). Word lays the text out itself, so line and page breaks can differ from
-// the PDF; the footer says the PDF is the official version.
+// sizes, links, tables; R2.17: page breaks and the version's document format). Word lays the
+// text out itself, so line and page breaks can differ from the PDF; the footer says the PDF is
+// the official version.
 import { parseHTML } from 'linkedom';
 import { zip } from './zip.mjs';
-import { DEFAULT_FONT, TYPE_SCALE, HIGHLIGHT_COLORS, fontFor } from '../../src/engine/content-model.js';
+import { DEFAULT_FONT, FONTS, TYPE_SCALE, HIGHLIGHT_COLORS, fontFor } from '../../src/engine/content-model.js';
+import { layoutValues } from '../../src/engine/layout.js';
 
 const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
@@ -46,7 +48,7 @@ function runProps(f) {
 }
 
 class Builder {
-  constructor() { this.links = []; this.lists = []; }
+  constructor() { this.links = []; this.lists = []; this.firstLine = 0; }
   link(href) { this.links.push(href); return 'rIdLink' + this.links.length; }
 
   // Inline content of a block as runs; nested lists and blocks are left to the caller.
@@ -95,12 +97,14 @@ class Builder {
     if (link) xml += '</w:hyperlink>';
     return xml;
   }
-  para(node, { style, numId, level, indent, border } = {}) {
+  para(node, { style, numId, level, indent, border, firstLine } = {}) {
     const p = [];
     if (style) p.push(`<w:pStyle w:val="${style}"/>`);
     if (numId) p.push(`<w:numPr><w:ilvl w:val="${level}"/><w:numId w:val="${numId}"/></w:numPr>`);
     if (border) p.push('<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="BBBBBB"/></w:pBdr>');
     if (indent) p.push(`<w:ind w:left="${indent}"/>`);
+    // The document format's first-line indent of 2 characters (body paragraphs only).
+    else if (firstLine && !style && !numId) p.push(`<w:ind w:firstLineChars="200" w:firstLine="${firstLine}"/>`);
     const align = node && ALIGN[styleProps(node.getAttribute?.('style'))['text-align']];
     if (align) p.push(`<w:jc w:val="${align}"/>`);
     return `<w:p>${p.length ? `<w:pPr>${p.join('')}</w:pPr>` : ''}${node ? this.runsXml(this.runs(node)) : ''}</w:p>`;
@@ -129,20 +133,22 @@ class Builder {
     const rows = [...el.querySelectorAll('tr')].filter((tr) => tr.closest('table') === el);
     const width = Math.max(1, ...rows.map((tr) => [...tr.children].reduce((n, c) => n + (Number(c.getAttribute('colspan')) || 1), 0)));
     const merged = new Array(width).fill(0);
-    let xml = '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>' +
+    // Full width, equal columns, 3pt × 5pt cell padding and a grey header row: as on screen and in the PDF.
+    let xml = '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>' +
       ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((s) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="999999"/>`).join('') +
-      '</w:tblBorders><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>' +
+      '</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>' +
       new Array(width).fill(`<w:gridCol w:w="${Math.floor(9638 / width)}"/>`).join('') + '</w:tblGrid>';
     for (const tr of rows) {
-      xml += '<w:tr>';
-      let col = 0;
       const cells = [...tr.children];
+      // A row of header cells repeats at the top of each page.
+      xml += cells.length && cells.every((c) => c.tagName === 'TH') ? '<w:tr><w:trPr><w:tblHeader/></w:trPr>' : '<w:tr>';
+      let col = 0;
       const cont = () => { while (col < width && merged[col] > 0) { xml += '<w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>'; merged[col]--; col++; } };
       for (const cell of cells) {
         cont();
         const span = Number(cell.getAttribute('colspan')) || 1, rows = Number(cell.getAttribute('rowspan')) || 1;
-        const pr = (span > 1 ? `<w:gridSpan w:val="${span}"/>` : '') + (rows > 1 ? '<w:vMerge w:val="restart"/>' : '');
         const head = cell.tagName === 'TH';
+        const pr = (span > 1 ? `<w:gridSpan w:val="${span}"/>` : '') + (rows > 1 ? '<w:vMerge w:val="restart"/>' : '') + (head ? '<w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>' : '');
         const runs = this.runs(cell, head ? { b: true } : {});
         xml += `<w:tc>${pr ? `<w:tcPr>${pr}</w:tcPr>` : ''}<w:p>${this.runsXml(runs)}</w:p></w:tc>`;
         if (rows > 1) for (let k = 0; k < span; k++) merged[col + k] = rows - 1;
@@ -160,9 +166,10 @@ class Builder {
       if (n.nodeType !== 1) continue;
       const tag = n.tagName;
       if (/^H[1-3]$/.test(tag)) xml += this.para(n, { style: 'Heading' + tag[1] });
-      else if (tag === 'P') xml += this.para(n);
+      else if (tag === 'P') xml += this.para(n, { firstLine: this.firstLine });
       else if (tag === 'UL' || tag === 'OL') xml += this.list(n);
       else if (tag === 'TABLE') xml += this.table(n);
+      else if (tag === 'HR' && n.getAttribute('data-edoc-break') === 'page') xml += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
       else if (tag === 'HR') xml += this.para(null, { border: true });
       else if (tag === 'BLOCKQUOTE') xml += n.querySelector('p,ul,ol,h1,h2,h3') ? this.blocks(n) : this.para(n, { indent: 720 });
       else if (tag !== 'IMG') xml += this.blocks(n);
@@ -200,12 +207,18 @@ function numberingXml(lists) {
   return `${XML}<w:numbering ${W}>${abstract}${nums}</w:numbering>`;
 }
 
-function stylesXml() {
-  const font = fontsXml(DEFAULT_FONT);
+// Document format (R2.17) in Word terms: line spacing is "at least" the PDF's line height, so
+// Word keeps its own (taller) single spacing for 1.0 and 1.15 and never clips large text.
+const SPACING_AFTER = { compact: 40, standard: 120, wide: 240 };
+function stylesXml(layout) {
+  const L = layoutValues(layout);
+  const font = fontsXml(FONTS.find((f) => f.id === L.font) || DEFAULT_FONT);
+  const size = layout?.size ? L.size : TYPE_SCALE.P;
+  const line = layout?.lineHeight ? `w:line="${Math.round(Number(L.lineHeight) * Number(size) * 20)}" w:lineRule="atLeast"` : 'w:line="360" w:lineRule="auto"';
   const heading = (n) => `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/>` +
     `<w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${n === 1 ? 0 : 320}" w:after="120"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:bCs/><w:sz w:val="${halfPoints(HEADING_SIZE[n])}"/><w:szCs w:val="${halfPoints(HEADING_SIZE[n])}"/></w:rPr></w:style>`;
-  return `${XML}<w:styles ${W}><w:docDefaults><w:rPrDefault><w:rPr>${font}<w:sz w:val="${halfPoints(TYPE_SCALE.P)}"/><w:szCs w:val="${halfPoints(TYPE_SCALE.P)}"/><w:lang w:val="zh-TW" w:eastAsia="zh-TW"/></w:rPr></w:rPrDefault>` +
-    '<w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="360" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
+  return `${XML}<w:styles ${W}><w:docDefaults><w:rPrDefault><w:rPr>${font}<w:sz w:val="${halfPoints(size)}"/><w:szCs w:val="${halfPoints(size)}"/><w:lang w:val="zh-TW" w:eastAsia="zh-TW"/></w:rPr></w:rPrDefault>` +
+    `<w:pPrDefault><w:pPr><w:spacing w:after="${SPACING_AFTER[L.spacing]}" ${line}/></w:pPr></w:pPrDefault></w:docDefaults>` +
     '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
     heading(1) + heading(2) + heading(3) +
     '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>' +
@@ -216,11 +229,13 @@ function stylesXml() {
 /**
  * The .docx bytes for one version. `html` is the clean, sanitized content (what the PDF shows).
  */
-export function docxFromHtml({ html, title, version, hash, created }) {
+export function docxFromHtml({ html, title, version, hash, created, layout = null }) {
   const { document } = parseHTML('<!doctype html><html><body></body></html>');
   const root = document.createElement('div');
   root.innerHTML = html;
   const b = new Builder();
+  const L = layoutValues(layout);
+  if (L.indent === '2') b.firstLine = Math.round(2 * Number(L.size) * 20);
   const body = b.blocks(root);
   const short = `${hash.slice(0, 8)}…${hash.slice(-8)}`;
   const footer = `${XML}<w:ftr ${W}><w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr><w:r><w:t xml:space="preserve">${esc(`版本 ${version}｜SHA-256 ${short}｜正式版以 PDF 為準　第 `)}</w:t></w:r>` +
@@ -252,7 +267,7 @@ export function docxFromHtml({ html, title, version, hash, created }) {
       '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>' },
     { name: 'word/document.xml', data: documentXml },
     { name: 'word/_rels/document.xml.rels', data: rels },
-    { name: 'word/styles.xml', data: stylesXml() },
+    { name: 'word/styles.xml', data: stylesXml(layout) },
     { name: 'word/numbering.xml', data: numberingXml(b.lists.length ? b.lists : [['bullet']]) },
     { name: 'word/settings.xml', data: `${XML}<w:settings ${W}><w:defaultTabStop w:val="480"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>` },
     { name: 'word/footer1.xml', data: footer },

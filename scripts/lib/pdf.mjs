@@ -14,6 +14,7 @@ import { buildFonts } from './fonts.mjs';
 import { docxFromHtml } from './docx-export.mjs';
 import { zip } from './zip.mjs';
 import { documentTypographyCss } from '../../src/engine/typography.js';
+import { layoutCss } from '../../src/engine/layout.js';
 
 // Header and footer templates cannot load web fonts: they use the system's Noto CJK.
 const FONT = `-apple-system,'PingFang TC','Noto Sans TC','Noto Sans CJK TC','Microsoft JhengHei',sans-serif`;
@@ -27,7 +28,7 @@ const detail = (details, prefix) => {
 
 export function taipeiTime(iso) { return displayDateTime(iso)+'（台北時間）'; }
 
-export function pdfHtml({ version, html, hash, url, created, editor }) {
+export function pdfHtml({ version, html, hash, url, created, editor, layout = null }) {
   const rows = [
     `版本：${esc(version)}`,
     created && `建立時間：${esc(taipeiTime(created))}`,
@@ -39,11 +40,12 @@ ${documentTypographyCss('body')}
 h1{line-height:1.35;margin:0 0 14pt}
 h2{margin:16pt 0 6pt;break-after:avoid} h3{break-after:avoid}
 ul{padding-left:17pt;margin:4pt 0} li{margin:2.5pt 0;break-inside:avoid} ul ul{margin-top:2pt}
-hr{border:none;border-top:0.6pt solid #bbb;margin:12pt 0}
-table{border-collapse:collapse} td,th{border:0.6pt solid #999;padding:3pt 5pt}
+hr{border:none;border-top:0.6pt solid #bbb;margin:12pt 0} hr[data-edoc-break]{border:none;margin:0;height:0}
+table{margin:6pt 0} tr{break-inside:avoid}
 .verify{margin-top:20pt;border:0.8pt solid #999;border-radius:3pt;padding:8pt 11pt;font-size:8.5pt;color:#222;break-inside:avoid}
 .verify b{font-size:9.5pt} .verify code{font-family:Menlo,Consolas,monospace;font-size:7.8pt;word-break:break-all}
 .verify p{margin:3pt 0}
+${layoutCss('body', layout)}
 </style></head><body>${html}
 <div class="verify"><b>文件驗證資訊</b>
 <p>${rows}</p>
@@ -55,10 +57,10 @@ table{border-collapse:collapse} td,th{border:0.6pt solid #999;padding:3pt 5pt}
 
 // Convenience copies next to the official PDF (R2.16): Word, and the PDF's pages as PNG
 // (one page → <v>.png, several → <v>.zip). PNG needs poppler's pdftoppm.
-async function writeExports({ dir, pdf, title, version, html, hash, created }) {
+async function writeExports({ dir, pdf, title, version, html, hash, created, layout }) {
   await mkdir(dir, { recursive: true });
   const written = [join(dir, `${version}.docx`)];
-  await writeFile(written[0], docxFromHtml({ html, title, version, hash, created }));
+  await writeFile(written[0], docxFromHtml({ html, title, version, hash, created, layout }));
   const tmp = await mkdtemp(join(tmpdir(), 'edoc-png-'));
   try {
     execFileSync('pdftoppm', ['-r', '150', '-png', pdf, join(tmp, 'p')], { stdio: 'ignore' });
@@ -97,6 +99,7 @@ export async function generatePdfs({ outDir, versions: only, exports = true } = 
           html: EDoc.sanitizeRevisionHtml(EDoc.cleanSnapshot(EDoc.versions[v].html)),
           hash: EDoc.versions[v].hash,
           details: EDoc.versions[v].details,
+          layout: EDoc.versions[v].layout || null,
         })), only || null);
       await page.close();
 
@@ -118,7 +121,7 @@ export async function generatePdfs({ outDir, versions: only, exports = true } = 
       for (const v of versions) {
         await pdfPage.setContent(pdfHtml({
           version: v.version, html: v.html, hash: v.hash, url,
-          created: detail(v.details, '建立時間：'), editor: detail(v.details, '編輯者：'),
+          created: detail(v.details, '建立時間：'), editor: detail(v.details, '編輯者：'), layout: v.layout,
         }), { waitUntil: 'networkidle' });
         const path = join(dir, `${v.version}.pdf`);
         await pdfPage.pdf({
@@ -129,7 +132,7 @@ export async function generatePdfs({ outDir, versions: only, exports = true } = 
           footerTemplate: `<div style="${small}"><span>SHA-256 ${v.hash.slice(0, 8)}…${v.hash.slice(-8)} · ${esc(new URL(config.siteUrl).host)}</span><span>第 <span class="pageNumber"></span>／<span class="totalPages"></span> 頁</span></div>`,
         });
         written.push(path);
-        if (exports) await writeExports({ dir: exportDir, pdf: path, title: doc.title, version: v.version, html: v.html, hash: v.hash, created: detail(v.details, '建立時間：') });
+        if (exports) await writeExports({ dir: exportDir, pdf: path, title: doc.title, version: v.version, html: v.html, hash: v.hash, created: detail(v.details, '建立時間：'), layout: v.layout });
       }
       await context.close();
     }

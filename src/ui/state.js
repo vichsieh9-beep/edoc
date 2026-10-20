@@ -27,6 +27,6 @@ state.activeVersion=state.docState.latestVersion;
 export function latestVersion() { return state.docState.latestVersion; }
 export async function ensureHash(v) {
   const data=state.versions[v];
-  if(!data.hash) data.hash=await snapshotHash(data.html);
+  if(!data.hash) data.hash=await snapshotHash(data.html, data.layout);
   return data.hash;
 }

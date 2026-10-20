@@ -8,7 +8,7 @@ const IMPORT_ALLOWED_TAGS=new Set(['H1','H2','H3','P','UL','OL','LI','STRONG','E
 const IMPORT_DROPPED_TAGS='script,style,iframe,frame,frameset,object,embed,applet,link,meta,base,form,input,button,'+
   'textarea,select,option,svg,math,template,noscript,audio,video,source,track,canvas,dialog,portal';
 const IMPORT_ALLOWED_ATTRS={'*':['class','data-edoc-block','data-edoc-fmt'],A:['href','title'],IMG:['src','alt','title','width','height'],
-  TD:['colspan','rowspan'],TH:['colspan','rowspan','scope']};
+  TD:['colspan','rowspan'],TH:['colspan','rowspan','scope'],HR:['data-edoc-break']};
 // Same meaning, one spelling: strikethrough is <s>.
 const RENAMED_TAGS={STRIKE:'S',DEL:'S'};
 function isSafeImportUrl(value){
@@ -22,8 +22,17 @@ function rename(el,tag){
   return n;
 }
 // Formatting is kept only in its canonical form (see content-model.js).
+const INLINE_FORMATS=new Set(['STRONG','EM','B','I','U','S','SUP','SUB','A']);
 function filterStyle(el){
   const raw=el.getAttribute('style')||'';
+  if(INLINE_FORMATS.has(el.tagName)){
+    // The browser's colour, font and size commands style a whole <b>…</b> when all of it is
+    // selected: the canonical style moves to a span inside it, where the content model keeps it.
+    const style=canonicalSpanStyle(raw,blockTagOf(el));
+    el.removeAttribute('style');
+    if(style){ const span=el.ownerDocument.createElement('span'); span.setAttribute('style',style); span.append(...el.childNodes); el.append(span); }
+    return;
+  }
   const style=el.tagName==='SPAN' ? canonicalSpanStyle(raw,blockTagOf(el))
     : STYLED_BLOCKS.has(el.tagName) ? canonicalBlockStyle(raw,el.getAttribute('align')||'') : '';
   if(style) el.setAttribute('style',style); else el.removeAttribute('style');
@@ -66,6 +75,7 @@ export function sanitizeRevisionHtml(html, context){
       if(name==='contenteditable' && a.value==='false') return;
       if(name==='style' && (el.tagName==='SPAN'||STYLED_BLOCKS.has(el.tagName))) return;
       if(name==='data-edoc-fmt' && !FORMAT_NOTE.test(a.value)){ el.removeAttribute(a.name); return; }
+      if(name==='data-edoc-break' && a.value!=='page'){ el.removeAttribute(a.name); return; }
       if(!allowed.includes(name) || ((name==='href'||name==='src') && !isSafeImportUrl(a.value))) el.removeAttribute(a.name);
     });
     if(el.hasAttribute('class')) filterClass(el);

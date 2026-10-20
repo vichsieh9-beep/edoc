@@ -69,11 +69,11 @@ const RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationsh
 <Relationship Id="rId10" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
 </Relationships>`;
 
-export function docx(bodyXml, { extra = {} } = {}) {
+export function docx(bodyXml, { extra = {}, styles = '' } = {}) {
   return zip({
     '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
     'word/document.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${bodyXml}<w:sectPr/></w:body></w:document>`,
-    'word/styles.xml': STYLES,
+    'word/styles.xml': STYLES.replace('</w:styles>', styles + '</w:styles>'),
     'word/numbering.xml': NUMBERING,
     'word/_rels/document.xml.rels': RELS,
     ...extra,

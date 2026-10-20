@@ -32,8 +32,10 @@ export const FONTS = [
   { id: 'tinos', pkg: 'tinos', label: 'Tinos', hint: '英文，同 Times New Roman', family: 'Tinos', css: "Tinos,'Noto Serif TC',serif" },
 ];
 export const DEFAULT_FONT = FONTS[0];
-// Font sizes in pt. Position + 1 is the browser's fontSize command level (1–7).
-export const FONT_SIZES = ['9', '10.5', '12', '14', '16', '20', '24'];
+// Font sizes in pt: Word's list (R2.17). The browser's fontSize command has 7 levels; these
+// are the sizes it writes as <font size="1–7">.
+export const FONT_SIZES = ['8', '9', '10', '10.5', '11', '12', '14', '16', '18', '20', '22', '24', '26', '28', '36', '48', '72'];
+export const LEVEL_SIZES = ['9', '10.5', '12', '14', '16', '20', '24'];
 // The shared type scale: body text and headings, on screen and in the PDF.
 export const TYPE_SCALE = { P: '12', LI: '12', TD: '12', TH: '12', BLOCKQUOTE: '12', H1: '20', H2: '15', H3: '13' };
 export const ALIGNMENTS = ['center', 'right', 'justify'];
@@ -80,13 +82,13 @@ export function fontFor(value) {
 /** '14pt' → '14'; the browser's size keywords map to the same 7 levels; px is editor residue. */
 export function fontSizeFor(value) {
   const v = String(value).trim().toLowerCase();
-  if (v in BROWSER_SIZE_KEYWORDS) return FONT_SIZES[BROWSER_SIZE_KEYWORDS[v] - 1];
+  if (v in BROWSER_SIZE_KEYWORDS) return LEVEL_SIZES[BROWSER_SIZE_KEYWORDS[v] - 1];
   const m = v.match(/^(\d{1,2}(?:\.\d{1,2})?)pt$/);
   if (!m) return null;
   const n = String(Number(m[1]));
   return FONT_SIZES.includes(n) ? n : null;
 }
-export const fontSizeForLevel = (level) => FONT_SIZES[Number(level) - 1] || null;
+export const fontSizeForLevel = (level) => LEVEL_SIZES[Number(level) - 1] || null;
 
 function declarations(style) {
   const out = [];
@@ -172,9 +174,10 @@ export function formatNote(before, after) {
   for (const k of ['color', 'bg', 'font', 'size', 'link']) if ((before[k] ?? null) !== (after[k] ?? null)) out.push(k);
   return out.join(' ');
 }
-/** Block-level formats: heading level, alignment, list type and depth. */
+/** Block-level formats: heading level, alignment, list type and depth, page break. */
 export function blockFormats(block) {
   const f = { tag: /^H[1-3]$/.test(block.tagName) ? block.tagName.toLowerCase() : 'p' };
+  if (block.tagName === 'HR' && block.getAttribute('data-edoc-break') === 'page') f.brk = 'page';
   const align = declarations(block.getAttribute('style')).find(([n]) => n === 'text-align');
   if (align) f.align = align[1];
   if (block.tagName === 'LI') {
@@ -188,6 +191,7 @@ export function blockFormatNote(before, after) {
   const out = [];
   if (before.tag !== after.tag) out.push('style');
   if ((before.align || '') !== (after.align || '')) out.push('align');
+  if ((before.brk || '') !== (after.brk || '')) out.push('break');
   if ((before.list || '') !== (after.list || '')) {
     const depth = (l) => (l || '').split('>').length;
     out.push(depth(before.list) !== depth(after.list) ? 'indent' : 'list');
@@ -199,7 +203,7 @@ const NOTE_LABELS = {
   '+b': '粗體', '-b': '取消粗體', '+i': '斜體', '-i': '取消斜體', '+u': '底線', '-u': '取消底線',
   '+s': '刪除線', '-s': '取消刪除線', '+sup': '上標', '-sup': '取消上標', '+sub': '下標', '-sub': '取消下標',
   color: '文字色彩', bg: '螢光筆', font: '字型', size: '字級', link: '連結',
-  style: '段落樣式', align: '對齊', list: '清單類型', indent: '縮排', layout: '換行或圖片',
+  style: '段落樣式', align: '對齊', list: '清單類型', indent: '縮排', layout: '換行或圖片', break: '分頁',
 };
 /** "+b color" → "粗體、文字色彩". */
 export function describeFormat(note) {

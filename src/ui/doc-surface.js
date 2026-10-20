@@ -4,6 +4,7 @@
 import { el } from './elements.js';
 import { state } from './state.js';
 import { BLOCK_SELECTOR } from '../engine/dom.js';
+import { layoutCss } from '../engine/layout.js';
 import { clearDraftDeletions, draftInputRange, restoreDraftSelection } from './draft-deletions.js';
 import {clearRevisionNavigation} from './revision-navigation.js';
 
@@ -47,9 +48,16 @@ export function draftSurfaceHtml() {
   copy.querySelectorAll('.draft-deletion').forEach(n=>n.remove());
   return copy.innerHTML;
 }
-export function setDocHtml(html) {
+export function setDocHtml(html, layout=null) {
   clearRevisionNavigation();
   withObserverPaused(()=>{ clearDraftDeletions(el.doc);el.doc.innerHTML=html; });
+  applyLayout(layout);
+}
+// The document format (R2.17) of what is shown: a version's, or the draft's while revising.
+export function applyLayout(layout) {
+  let style=document.getElementById('edocLayout');
+  if(!style){ style=document.createElement('style'); style.id='edocLayout'; document.head.append(style); }
+  style.textContent=layoutCss('.doc',layout);
 }
 function nearestBlock(node) {
   let n=node;

@@ -21,6 +21,7 @@ import { cleanSnapshot } from '../engine/dom.js';
 import { buildFormalDiff, analyzeFormalDiff } from '../engine/diff.js';
 import { sanitizeRevisionHtml, makeRevisionPackage } from '../engine/revision.js';
 import { nextVersion, nowISO } from '../engine/version.js';
+import { canonicalLayout, layoutChanges, layoutChangeLine } from '../engine/layout.js';
 
 const draftKey = () => 'edoc-draft:' + state.docState.documentId;
 export function savedDraft() {
@@ -30,7 +31,14 @@ export function saveDraftNow() {
   const r = state.activeRevision;
   if (!r) return;
   r.html = draftSurfaceHtml();
-  writeStore(draftKey(), JSON.stringify({ baseVersion: r.baseVersion, html: r.html, savedAt: nowISO(), sourceSuggestionId:r.sourceSuggestionId,sourceItemIds:r.sourceItemIds,suggestionRequest:r.suggestionRequest }));
+  writeStore(draftKey(), JSON.stringify({ baseVersion: r.baseVersion, html: r.html, layout: r.layout, savedAt: nowISO(), sourceSuggestionId:r.sourceSuggestionId,sourceItemIds:r.sourceItemIds,suggestionRequest:r.suggestionRequest }));
+}
+// What a draft changes: its words (the formal diff) and its document format (R2.17).
+export function draftSummary(stats, r = state.activeRevision) {
+  const changes = layoutChanges(state.versions[r.baseVersion].layout, r.layout);
+  if (!changes.length) return { summary: stats.summary, line: null };
+  const line = layoutChangeLine(changes);
+  return { summary: stats.summary === '未偵測到內容變更' ? line : stats.summary + '；' + line, line };
 }
 let saveTimer = null;
 export function clearSavedDraft() { clearTimeout(saveTimer); removeStore(draftKey()); }
@@ -39,7 +47,7 @@ export function refreshDraftStats(force=false) {
   if (!state.activeRevision) return;
   try {
     const formal = buildFormalDiff(state.versions[state.activeRevision.baseVersion].html, el.doc.innerHTML);
-    el.revisionSummary.textContent = analyzeFormalDiff(formal).summary;
+    el.revisionSummary.textContent = draftSummary(analyzeFormalDiff(formal)).summary;
     renderRevisionMarkup(formal,{force});
   } catch (e) {
     el.revisionSummary.textContent = 'Draft 變更統計將於完成修訂時計算';
@@ -60,6 +68,8 @@ export function initDraftTracking() {
     saveTimer = setTimeout(saveDraftNow, 600);
   });
   addEventListener('pagehide', saveDraftNow);
+  // The document format dialog changed the draft's layout.
+  el.doc.addEventListener('edoc-layout-changed', () => { saveDraftNow(); refreshDraftStats(); });
 }
 
 export function downloadBackup(revision) {
@@ -80,10 +90,12 @@ export async function startRevision(options={}) {
     author: state.session.name, role: '', summary: '', createdAt: nowISO(), status: 'draft',
     sourceSuggestionId:options.sourceSuggestionId||resume?.sourceSuggestionId,sourceItemIds:options.sourceItemIds||resume?.sourceItemIds,suggestionRequest:resume?.suggestionRequest,
     html: options.html || (resume ? sanitizeRevisionHtml(resume.html) : cleanSnapshot(sanitizeRevisionHtml(state.versions[base].html))),
+    // The document format starts as the base version's; a resumed draft keeps its own.
+    layout: canonicalLayout(resume && !options.html ? resume.layout : state.versions[base].layout),
     documentId: state.docState.documentId,
   };
   state.revisions.push(state.activeRevision);
-  state.suppressObserver = true; setDocHtml(state.activeRevision.html); annotateBlocks(); state.suppressObserver = false;
+  state.suppressObserver = true; setDocHtml(state.activeRevision.html, state.activeRevision.layout); annotateBlocks(); state.suppressObserver = false;
   el.doc.contentEditable = 'true'; el.doc.classList.add('editing');
   document.execCommand('defaultParagraphSeparator', false, 'p');
   el.versionLabel.textContent = 'Draft · Base ' + base;
@@ -145,28 +157,31 @@ export async function finishRevision() {
   // The formal diff is recomputed from the base snapshot and the draft snapshot.
   const html = buildFormalDiff(state.versions[base].html, r.html);
   const stats = analyzeFormalDiff(html);
-  if (stats.summary === '未偵測到內容變更') {
+  const { summary, line } = draftSummary(stats, r);
+  if (summary === '未偵測到內容變更') {
     alert('沒有偵測到內容變更，因此不建立新版本。');
     return;
   }
   const choice = await openDialog({
     title: `完成修訂-版本更新 ${key}`,
-    summary: `Base ${base}｜${stats.summary}`,
+    summary: `Base ${base}｜${summary}`,
     note: '按「發布」後，新版本會存進正式文件，約 2～3 分鐘後公開網址更新；有編輯權限的人都看得到。',
     actions: [{ label: '取消', value: null }, { label: '發布', value: 'publish', primary: true }],
   });
   if (choice !== 'publish') return;
   saveDraftNow();
+  const layout = canonicalLayout(r.layout);
   const version = {
-    summary: stats.summary,
-    details: [...stats.details, '基準版本：' + base, '編輯者：' + state.session.name, '建立時間：' + nowISO()],
-    previous: base, html, uiChanges: [], aiSummary: null,
+    summary,
+    details: [...stats.details, ...(line ? [line] : []), '基準版本：' + base, '編輯者：' + state.session.name, '建立時間：' + nowISO()],
+    previous: base, html, ...(layout ? { layout } : {}), uiChanges: [], aiSummary: null,
   };
   setBusy(true);
   try {
     const stored = await api('/versions', { token: state.session.token, doc: state.meta.slug, baseVersion: base, versionKey: key, version });
     // The Worker stores the html through the same content model; show exactly what was stored.
     if (typeof stored?.html === 'string') version.html = stored.html;
+    if (stored && 'layout' in stored) { if (stored.layout) version.layout = stored.layout; else delete version.layout; }
   } catch (e) {
     setBusy(false);
     return publishFailed(e, r);

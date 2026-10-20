@@ -14,6 +14,7 @@
 //      GITHUB_REPO, GITHUB_BRANCH, ALLOWED_ORIGIN (comma-separated).
 // Requests are "simple" CORS requests (POST, text/plain JSON body) so browsers send no preflight.
 import { nextVersion } from '../../src/engine/version.js';
+import { canonicalLayout } from '../../src/engine/layout.js';
 import { HttpError } from './errors.js';
 import { github } from './github.js';
 import { publishLegacy as publish, storedHtml } from './legacy-versions.js';
@@ -168,7 +169,7 @@ async function createDocument({ body, link, gh, now, random }) {
   const method = body.method;
   if (!Object.hasOwn(METHODS, method)) throw new HttpError(400, 'bad_request', '建立方式錯誤');
   if (!validHtml(body.html)) throw new HttpError(400, 'bad_request', '文件內容是空的或太大');
-  let how = METHODS[method];
+  let how = METHODS[method], layout = null;
   if (method === 'copy') {
     const source = body.source || {};
     const { doc: from } = await readDocument(gh, checkSlug(source.doc));
@@ -176,6 +177,8 @@ async function createDocument({ body, link, gh, now, random }) {
       throw new HttpError(400, 'bad_request', '來源版本錯誤');
     }
     how += `（${from.title} ${source.version}）`;
+    // A copy keeps the source version's document format.
+    layout = canonicalLayout(from.versions[source.version].layout);
   } else if (method === 'docx' || method === 'pdf') {
     how += `（${cleanText(body.fileName, 200, '檔名')}）`;
   }
@@ -201,6 +204,7 @@ async function createDocument({ body, link, gh, now, random }) {
         details: [`建立方式：${how}`, EDITOR + link.name, CREATED + now.toISOString()],
         previous: null,
         html: storedHtml(body.html),
+        ...(layout ? { layout } : {}),
         uiChanges: [],
         aiSummary: null,
       },

@@ -145,7 +145,9 @@ test('pasted rich text keeps supported formatting only', async ({ page }) => {
   await acceptRevision(page, 'v0.8');
   const html = stored(dialogs.gh, 'v0.8');
   expect(html).toContain('紅色粗體');
-  expect(html).toMatch(/color:#ff0000;font-family:Arimo/);
+  // Arial 11pt is most of the pasted text (the source's body): dropped; the red colour is kept.
+  expect(html).toContain('color:#ff0000');
+  expect(html).not.toContain('Arimo');
   expect(html).toMatch(/<strong>|<b>/);
   expect(html).toContain('<u>');
   expect(html).not.toMatch(/11pt|rgb\(|font-weight/);

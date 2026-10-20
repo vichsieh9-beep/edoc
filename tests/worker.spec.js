@@ -95,6 +95,30 @@ test('publish: refuses oversized or malformed input', async () => {
   expect((await call(gh, '/versions', null, { method: 'GET' })).status).toBe(405);
 });
 
+test('publish: the document format is stored in canonical form only (R2.17)', async () => {
+  const gh = createFakeGithub();
+  const r = await publish(gh, { version: version({ layout: { lineHeight: '1.5', indent: '2', size: '12', font: 'nope', extra: 'x' } }) });
+  expect(r.status).toBe(201);
+  expect(r.body.layout).toEqual({ lineHeight: '1.5', indent: '2' });
+  const stored = gh.read().versions['v0.8'];
+  expect(stored.layout).toEqual({ lineHeight: '1.5', indent: '2' });
+  expect(Object.keys(stored)).toEqual(['summary', 'details', 'previous', 'html', 'layout', 'uiChanges', 'aiSummary']);
+  // The default format is no format at all.
+  const gh2 = createFakeGithub();
+  await publish(gh2, { version: version({ layout: { lineHeight: '1.7', spacing: 'standard' } }) });
+  expect(gh2.read().versions['v0.8']).not.toHaveProperty('layout');
+  for (const layout of ['1.5', ['x'], 3]) expect((await publish(createFakeGithub(), { version: version({ layout }) })).status).toBe(400);
+});
+
+test('create: a copy keeps the document format of its source version', async () => {
+  const gh = createFakeGithub();
+  await publish(gh, { version: version({ layout: { font: 'serif' } }) });
+  const copy = await admin(gh, '/documents', { title: '複本', method: 'copy', html: '<h1>複本</h1>', source: { doc: 'qa-senior-game-qa', version: 'v0.8' } });
+  expect(gh.read(`documents/${copy.body.slug}/document.json`).versions['v0.1'].layout).toEqual({ font: 'serif' });
+  const old = await admin(gh, '/documents', { title: '舊版', method: 'copy', html: '<h1>舊版</h1>', source: { doc: 'qa-senior-game-qa', version: 'v0.7' } });
+  expect(gh.read(`documents/${old.body.slug}/document.json`).versions['v0.1']).not.toHaveProperty('layout');
+});
+
 test('publish: at most 10 new versions per document per hour', async () => {
   const doc = repoDocument();
   let latest = 'v0.7';

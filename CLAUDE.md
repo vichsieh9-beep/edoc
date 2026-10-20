@@ -104,6 +104,10 @@ content model in `src/engine/content-model.js` (closed lists of colours, fonts a
 else is dropped); the formal diff marks formatting-only changes as `format-changed`, never as
 deleted plus added text.
 
+A version may carry `layout` (R2.17 document format: font, body size, line spacing, paragraph
+spacing, first-line indent; only non-default values). It is part of that version's SHA-256;
+versions without it keep their old hash.
+
 Versions published from the web page are committed straight to `document.json` on GitHub by
 the Worker, so always `git pull` before changing anything locally (`changelog` and `edit-link`
 refuse to write when the local branch is behind).

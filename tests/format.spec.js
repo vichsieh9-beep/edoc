@@ -132,12 +132,17 @@ test('only palette styles survive: injected CSS never reaches stored html', asyn
 
 test('pasted Word and Google Docs html keeps supported formatting only', async ({ page }) => {
   const r = await page.evaluate(() => ({
-    google: E.normalizePastedHtml('<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-1"><p dir="ltr" style="line-height:1.38;text-align:center;"><span style="font-size:14pt;font-family:Arial,sans-serif;color:#ff0000;font-weight:700;text-decoration:underline;">紅粗底</span><span style="font-size:11pt;color:#000000;">一般</span></p></b>'),
+    google: E.normalizePastedHtml('<meta charset="utf-8"><b style="font-weight:normal;" id="docs-internal-guid-1"><p dir="ltr" style="line-height:1.38;text-align:center;"><span style="font-size:14pt;font-family:Arial,sans-serif;color:#ff0000;font-weight:700;text-decoration:underline;">紅粗底</span><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;">一般的內文比較長一點</span></p></b>'),
     word: E.normalizePastedHtml('<p class=MsoNormal style="text-align:right"><span style="font-family:新細明體;color:#7030A0">紫明體</span><s>刪</s></p><h4>小節</h4>'),
     edoc: E.normalizePastedHtml('<li>保留<span class="changed" style="color: rgb(29, 78, 216); text-decoration: underline;">新增字</span><span class="deleted" style="color: rgb(185, 28, 28); text-decoration: line-through;">舊字</span></li>'),
   }));
-  expect(r.google).toBe('<p style="text-align:center"><span style="color:#ff0000;font-family:Arimo,\'Noto Sans TC\',sans-serif;font-size:14pt"><u><strong>紅粗底</strong></u></span>一般</p>');
-  expect(r.word).toBe('<p style="text-align:right"><span style="color:#7030a0;font-family:\'Noto Serif TC\',serif">紫明體</span><s>刪</s></p><h3>小節</h3>');
+  // Most of the text is Google Docs' 11pt Arial body: dropped; the 14pt emphasis is kept.
+  expect(r.google).toBe('<p style="text-align:center"><span style="color:#ff0000;font-size:14pt"><u><strong>紅粗底</strong></u></span>一般的內文比較長一點</p>');
+  // 新細明體 is half of the pasted text, i.e. the source's body font: dropped like its size.
+  expect(r.word).toBe('<p style="text-align:right"><span style="color:#7030a0">紫明體</span><s>刪</s></p><h3>小節</h3>');
+  // A font used for a minority of the text is deliberate and kept (mapped to the bundled font).
+  expect(await page.evaluate(() => E.normalizePastedHtml('<p>一般內文一般內文一般內文<span style="font-family:新細明體">明體</span></p>')))
+    .toBe('<p>一般內文一般內文一般內文<span style="font-family:\'Noto Serif TC\',serif">明體</span></p>');
   expect(r.edoc).toBe('<li>保留新增字</li>');
 });
 

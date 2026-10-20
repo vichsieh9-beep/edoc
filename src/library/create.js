@@ -46,7 +46,13 @@ function insertHtml(box, html) {
 function reportItems(r, kind) {
   if (kind === 'pdf') return pdfReportItems(r);
   const ok = [`標題 ${r.headings} 個、段落 ${r.paragraphs} 段、條列 ${r.listItems} 項`];
+  if (r.kept?.length) ok.push(`保留格式：粗體、斜體、${r.kept.join('、')}`);
   const warn = [];
+  const d = r.dropped || {};
+  if (d.color) warn.push(`色盤以外的文字色彩 ${d.color} 處：改用預設顏色`);
+  if (d.bg) warn.push(`螢光筆以外的底色 ${d.bg} 處：未保留`);
+  if (d.fonts?.length) warn.push(`字型 ${d.fonts.join('、')}：EDoc 沒有，改用文件字型`);
+  if (d.sizes?.length) warn.push(`字級 ${d.sizes.join('、')}：不在字級清單內，改用內文字級`);
   if (r.tables) warn.push(`表格 ${r.tables} 個：保留內容與合併儲存格，框線、底色改用 EDoc 樣式`);
   if (r.images) warn.push(`圖片 ${r.images} 張：第一版不匯入`);
   if (r.textBoxes) warn.push(`文字方塊 ${r.textBoxes} 個：未匯入`);

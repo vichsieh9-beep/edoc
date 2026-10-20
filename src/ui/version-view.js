@@ -11,6 +11,7 @@ import { renderPublishState } from './publish-status.js';
 import { localDateTime } from './format.js';
 import { analyzeFormalDiff } from '../engine/diff.js';
 import {refreshRevisionNavigation} from './revision-navigation.js';
+import { layoutChanges } from '../engine/layout.js';
 
 function aiChip() {
   const c=document.createElement('span'); c.className='ai-chip'; c.textContent='AI'; return c;
@@ -18,7 +19,8 @@ function aiChip() {
 // Keep metadata available internally; the card presents only totals and meaning.
 function renderAiSummary(data) {
   const stats=analyzeFormalDiff(data.html);
-  el.cardSummary.textContent=`統計：${stats.modifiedBlocks} 處修改、${stats.addedBlocks} 處新增、${stats.deletedBlocks} 處刪除${stats.formattedBlocks?`、${stats.formattedBlocks} 處格式變更`:''}。`;
+  const layout=data.previous && state.versions[data.previous] && layoutChanges(state.versions[data.previous].layout,data.layout).length;
+  el.cardSummary.textContent=`統計：${stats.modifiedBlocks} 處修改、${stats.addedBlocks} 處新增、${stats.deletedBlocks} 處刪除${stats.formattedBlocks?`、${stats.formattedBlocks} 處格式變更`:''}${layout?'、文件格式變更':''}。`;
   const ai=usableAiSummary(data);
   el.cardMeaning.textContent=ai?.summary || (data.previous ? '變更說明尚未補寫' : data.summary);
 }
@@ -56,7 +58,7 @@ export async function renderVersion(v) {
   document.getElementById('revisionMarkup')?.removeAttribute('data-private');document.getElementById('revisionMarkup')?.removeAttribute('data-suggestion-panel');
   state.activeVersion=v; state.activeRevision=null; state.suppressObserver=true;
   // Stored html is filtered before display, so even a leaked edit link cannot inject script.
-  const data=state.versions[v]; setDocHtml(sanitizeRevisionHtml(data.html)); state.suppressObserver=false;
+  const data=state.versions[v]; setDocHtml(sanitizeRevisionHtml(data.html), data.layout); state.suppressObserver=false;
   el.doc.contentEditable='false'; el.doc.classList.remove('editing');
   el.revisionPanel.classList.remove('show');
   el.versionLabel.textContent=v+(v===latestVersion()?' · Current':'');

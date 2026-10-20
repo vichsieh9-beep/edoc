@@ -1,5 +1,6 @@
 import { nextVersion } from '../../src/engine/version.js';
 import { sanitizeRevisionHtml } from '../../src/engine/revision.js';
+import { canonicalLayout } from '../../src/engine/layout.js';
 import { contentContext } from './content.js';
 import { HttpError } from './errors.js';
 const MAX_BODY = 1_500_000;
@@ -33,7 +34,7 @@ export async function publishLegacy({ body, link, gh, now }) {
   const next = { ...doc, latestVersion: key, versions: { ...doc.versions, [key]: version } };
   const commit = await gh.writeJson(path, next, sha, `Add ${key} to ${body.doc} by ${link.name} via EDoc`,
     '剛好有人同時更新了文件，請重新整理後再試；你的修改已暫存在這個瀏覽器。');
-  return { version: key, commit, html: version.html };
+  return { version: key, commit, html: version.html, layout: version.layout || null };
 }
 
 // Stored html follows the same content model the page displays (R2.16): whatever a client
@@ -41,7 +42,8 @@ export async function publishLegacy({ body, link, gh, now }) {
 export const storedHtml = (html) => sanitizeRevisionHtml(html, contentContext());
 
 // Keep only known fields. The content hash is recomputed by every viewer from the html,
-// so a client-supplied hash is never stored.
+// so a client-supplied hash is never stored. The document format (R2.17) is kept in its
+// canonical form only, and left out when it is the default.
 export function validateVersion(v, { previous, editor, now, publication=false }) {
   const bad = (message) => new HttpError(400, 'bad_version', message);
   if (!v || typeof v !== 'object') throw bad('版本資料錯誤');
@@ -58,7 +60,9 @@ export function validateVersion(v, { previous, editor, now, publication=false })
   const t = created.length === 1 ? Date.parse(created[0].slice(CREATED.length)) : NaN;
   if (Number.isNaN(t) || Math.abs(now - t) > CLOCK_SKEW_MS) throw bad('建立時間錯誤');
   if(publication && (!/^[0-9a-f-]{36}$/.test(v.publicationId||'') || !/^[0-9a-f]{64}$/.test(v.contentHash||''))) throw bad('發布驗證資料錯誤');
-  return { ...(publication?{publicationId:v.publicationId,contentHash:v.contentHash}:{}), summary: v.summary, details: v.details.slice(), previous, html: publication ? v.html : storedHtml(v.html), uiChanges: [], aiSummary: null };
+  if (v.layout != null && (typeof v.layout !== 'object' || Array.isArray(v.layout))) throw bad('文件格式錯誤');
+  const layout = canonicalLayout(v.layout);
+  return { ...(publication?{publicationId:v.publicationId,contentHash:v.contentHash}:{}), summary: v.summary, details: v.details.slice(), previous, html: publication ? v.html : storedHtml(v.html), ...(layout ? { layout } : {}), uiChanges: [], aiSummary: null };
 }
 
 const validHtml = (html) => typeof html === 'string' && !!html.trim() && html.length <= MAX_HTML;

@@ -61,7 +61,7 @@ export function blockSignature(block){
   }));
   const tw=c.ownerDocument.createTreeWalker(c,4); let n;
   while((n=tw.nextNode())) n.textContent=n.textContent.replace(/\s+/g,' ');
-  const f=blockFormats(block), extra=(f.align?'|align='+f.align:'')+(f.list?'|'+f.list:'');
+  const f=blockFormats(block), extra=(f.align?'|align='+f.align:'')+(f.list?'|'+f.list:'')+(f.brk?'|break':'');
   return block.tagName+'|'+c.innerHTML.replace(/\s+/g,' ').trim()+extra;
 }
 
@@ -366,6 +366,14 @@ export function analyzeFormalDiff(formalHtml, context){
     else { st.formatted++; formattedBlocks++; }
   });
 
+  // Page breaks are content too (dividers keep their earlier behaviour: not counted).
+  wrap.querySelectorAll('hr[data-edoc-break],hr.format-changed').forEach(hr=>{
+    if(insideMarkedBlock(hr)) return;
+    const st=ensure(sectionNameFor(hr,wrap));
+    if(hr.classList.contains('deleted')){ st.deleted++; deletedBlocks++; }
+    else if(hr.classList.contains('changed')){ st.added++; addedBlocks++; }
+    else if(hr.classList.contains('format-changed')){ st.formatted++; formattedBlocks++; }
+  });
   const parts=[];
   for(const [sec,st] of sectionStats){
     const p=[];

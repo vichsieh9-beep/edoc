@@ -50,7 +50,7 @@ export async function openSuggestionList(){
 }
 export async function loadSuggestion(id){
  const s=await collaborationApi('/suggestions/get',{id});s.history=[];let cursor=0;while(true){const r=await collaborationApi('/suggestions/history',{id,cursor});s.history.push(...r.events);cursor=r.cursor;if(r.events.length<50)break;}state.suggestion=s;state.privateView='suggestion';state.activeRevision=null;
- state.suppressObserver=true;setDocHtml(sanitizeRevisionHtml(buildFormalDiff(s.baseHtml,s.proposedHtml)));state.suppressObserver=false;
+ state.suppressObserver=true;setDocHtml(sanitizeRevisionHtml(buildFormalDiff(s.baseHtml,s.proposedHtml)),state.versions[s.baseVersion]?.layout);state.suppressObserver=false;
  el.doc.contentEditable='false';el.doc.classList.remove('editing');el.versionCard.hidden=true;el.revisionPanel.classList.remove('show');el.versionLabel.textContent=s.id+' · 修訂建議';
  document.getElementById('documentReview').classList.remove('simple-markup');el.doc.classList.remove('clean');
  const panel=renderSuggestionView(s,{

@@ -1,12 +1,16 @@
-// Formatting toolbar of a Draft (R2.16): Word's Home tab essentials. Every command is a native
-// editing command, so the browser's undo history keeps working; comparison fragments are
-// cleared first (see doc-surface.js) and the live DOM is never rewritten afterwards. What gets
-// stored is decided by the content model when the draft is compared and published.
+// Formatting toolbar of a Draft (R2.16): Word's Home tab essentials. The commands themselves
+// are in editing.js (native editing commands, so undo keeps working).
 import { el } from './elements.js';
 import { state } from './state.js';
 import { prepareForCommand } from './doc-surface.js';
 import { BLOCK_SELECTOR } from '../engine/dom.js';
-import { FONTS, DEFAULT_FONT, FONT_SIZES, TYPE_SCALE, TEXT_COLORS, HIGHLIGHT_COLORS, fontFor } from '../engine/content-model.js';
+import { drafting, selectionInDoc, remember, restore, anchorElement, currentBlock, inList, runCommand, wrapSelection, insertBetweenBlocks, onCommandDone } from './editing.js';
+import { GRID_MAX, insertTable, currentCell, moveCell, renderTableBar, initTableTools } from './table-tools.js';
+import { initPanels, closePanel } from './panel.js';
+import { openLayoutPanel } from './layout-panel.js';
+import { openFindPanel, initFindReplace } from './find-replace.js';
+import { togglePainter, painting, painterSticky, initFormatPainter, stop as stopPainter } from './format-painter.js';
+import { FONTS, DEFAULT_FONT, FONT_SIZES, LEVEL_SIZES, TYPE_SCALE, TEXT_COLORS, HIGHLIGHT_COLORS, fontFor } from '../engine/content-model.js';
 import { normalizePastedHtml } from '../engine/import.js';
 import { fontStylesheet } from '../engine/typography.js';
 
@@ -26,6 +30,10 @@ const ICONS = {
   link: svg('<path d="M10 14a4.5 4.5 0 006.4 0l3-3a4.5 4.5 0 00-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 00-6.4 0l-3 3a4.5 4.5 0 006.4 6.4l1.2-1.2"/>'),
   clear: svg('<path d="M5 5h12M11 5l-3 14"/><path d="M15 14l5 5M20 14l-5 5"/>'),
   marker: svg('<path d="M14.5 4.5l5 5-7.5 7.5h-5v-5z"/><path d="M7 17l-2.5 2.5"/>'),
+  painter: svg('<rect x="4" y="3" width="13" height="6" rx="1.5"/><path d="M17 6h2v5h-7v3"/><rect x="10.5" y="14" width="3" height="7" rx="1"/>'),
+  find: svg('<circle cx="10" cy="10" r="6"/><path d="M15 15l5 5"/>'),
+  layout: svg('<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h7"/>'),
+  more: svg('<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>'),
 };
 const letter = (ch, style) => `<span class="fmt-letter" style="${style}">${ch}</span>`;
 const PARAGRAPH_STYLES = [
@@ -38,40 +46,7 @@ const DEFAULT_TEXT = '#1f1f1f';
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const mod = isMac ? '⌘' : 'Ctrl+';
-let bar = null, sheet = null, pop = null, savedRange = null, lastColor = TEXT_COLORS[0].value, lastHighlight = HIGHLIGHT_COLORS[0].value;
-
-const drafting = () => !!state.activeRevision && el.doc.isContentEditable;
-function selectionInDoc() {
-  const s = getSelection();
-  return s && s.rangeCount && el.doc.contains(s.anchorNode) ? s.getRangeAt(0) : null;
-}
-function remember() { const r = selectionInDoc(); if (r) savedRange = r.cloneRange(); }
-function restore() {
-  if (selectionInDoc()) return;
-  el.doc.focus({ preventScroll: true });
-  if (savedRange && el.doc.contains(savedRange.startContainer)) { const s = getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
-}
-function anchorElement() {
-  const r = selectionInDoc() || savedRange;
-  if (!r) return null;
-  const n = r.startContainer;
-  return n.nodeType === 3 ? n.parentElement : n;
-}
-const currentBlock = () => anchorElement()?.closest(BLOCK_SELECTOR) || null;
-const inList = () => !!anchorElement()?.closest('li');
-
-/** Run one native editing command on the draft, keeping the selection and undo history. */
-export function runCommand(command, value = null, { css = false } = {}) {
-  if (!drafting()) return;
-  restore();
-  prepareForCommand();
-  document.execCommand('styleWithCSS', false, css);
-  document.execCommand(command, false, value);
-  document.execCommand('styleWithCSS', false, false);
-  remember();
-  closePop();
-  refresh();
-}
+let bar = null, sheet = null, pop = null, lastColor = TEXT_COLORS[0].value, lastHighlight = HIGHLIGHT_COLORS[0].value;
 
 // ---------- Toolbar ----------
 function button(key, inner, title, onClick, extra = '') {
@@ -134,7 +109,11 @@ function swatches(title, list, current, apply, none) {
 
 const applyStyle = (tag) => runCommand('formatBlock', `<${tag}>`);
 const applyFont = (font) => runCommand('fontName', font.css, { css: true });
-const applySize = (pt) => runCommand('fontSize', String(FONT_SIZES.indexOf(pt) + 1));
+// The browser's own size command knows 7 sizes; the others are applied paragraph by paragraph.
+function applySize(pt) {
+  if (LEVEL_SIZES.includes(pt)) return runCommand('fontSize', String(LEVEL_SIZES.indexOf(pt) + 1));
+  wrapSelection((span) => { span.style.fontSize = pt + 'pt'; }, ['font-size']);
+}
 function applyColor(value) { if (value) lastColor = value; runCommand('foreColor', value || DEFAULT_TEXT, { css: true }); }
 function applyHighlight(value) { if (value) lastHighlight = value; runCommand('hiliteColor', value || 'transparent', { css: true }); }
 
@@ -149,6 +128,35 @@ function fontPop(p) {
 function sizePop(p) {
   const current = currentSize();
   for (const s of FONT_SIZES) p.append(option(s, { selected: s === current, hint: s === TYPE_SCALE.P ? '內文預設' : '', onPick: () => applySize(s) }));
+  setTimeout(() => p.querySelector('.sel')?.scrollIntoView({ block: 'center' }), 0);
+}
+// Rows × columns: hover (or touch) a square of the grid, click to insert.
+function tableGrid() {
+  const wrap = document.createElement('div');
+  wrap.className = 'fmt-grid-wrap';
+  wrap.innerHTML = '<div class="fmt-pop-title">表格 <span class="fmt-grid-size">選擇列數 × 欄數</span></div>';
+  const grid = document.createElement('div'); grid.className = 'fmt-grid';
+  const size = wrap.querySelector('.fmt-grid-size');
+  const show = (r, c) => {
+    for (const sq of grid.children) sq.classList.toggle('on', +sq.dataset.r <= r && +sq.dataset.c <= c);
+    size.textContent = r ? `${r} 列 × ${c} 欄` : '選擇列數 × 欄數';
+  };
+  for (let r = 1; r <= GRID_MAX; r++) for (let c = 1; c <= GRID_MAX; c++) {
+    const sq = document.createElement('button');
+    sq.type = 'button'; sq.className = 'fmt-grid-sq'; sq.dataset.r = r; sq.dataset.c = c; sq.setAttribute('aria-label', `${r} 列 × ${c} 欄表格`);
+    sq.addEventListener('mouseenter', () => show(r, c));
+    sq.addEventListener('focus', () => show(r, c));
+    sq.addEventListener('click', () => { closePop(); insertTable(r, c); });
+    grid.append(sq);
+  }
+  grid.addEventListener('mouseleave', () => show(0, 0));
+  wrap.append(grid);
+  return wrap;
+}
+function insertPop(p) {
+  p.append(tableGrid());
+  p.append(option('分頁符號', { hint: 'PDF、Word 從這裡換新頁', onPick: () => insertBetweenBlocks('<hr data-edoc-break="page">') }));
+  p.append(option('分隔線', { onPick: () => insertBetweenBlocks('<hr>') }));
 }
 function colorPop(p) {
   p.append(swatches('文字色彩', TEXT_COLORS, null, applyColor, { label: '自動', short: '自動', color: DEFAULT_TEXT }));
@@ -214,6 +222,51 @@ function openSheet() {
 }
 function closeSheet() { sheet?.remove(); sheet = null; }
 
+// Phone: "⋯" gathers the tools the bottom bar has no room for (R2.17).
+function openMoreSheet() {
+  if (sheet) { closeSheet(); return; }
+  remember();
+  sheet = document.createElement('div');
+  sheet.className = 'fmt-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', '更多工具');
+  sheet.addEventListener('mousedown', (e) => e.preventDefault());
+  const then = (fn) => () => { closeSheet(); fn(); };
+  const chip = (label, onPick, selected = false, disabled = false) => {
+    const c = Object.assign(document.createElement('button'), { type: 'button', className: 'fmt-chip' + (selected ? ' sel' : ''), disabled });
+    c.innerHTML = label;
+    c.addEventListener('click', onPick);
+    return c;
+  };
+  const row = (title, items) => {
+    const h = Object.assign(document.createElement('div'), { className: 'fmt-sheet-title', textContent: title });
+    const r = Object.assign(document.createElement('div'), { className: 'fmt-sheet-row' });
+    r.append(...items);
+    sheet.append(h, r);
+  };
+  const grab = document.createElement('div'); grab.className = 'fmt-grab';
+  const head = document.createElement('div'); head.className = 'fmt-sheet-head'; head.innerHTML = '<b>更多工具</b>';
+  const done = Object.assign(document.createElement('button'), { type: 'button', textContent: '完成' });
+  done.addEventListener('click', closeSheet);
+  head.append(done);
+  sheet.append(grab, head);
+  row('文字', [
+    chip('X<sup>2</sup>&nbsp;上標', then(() => runCommand('superscript')), queryState('superscript')),
+    chip('X<sub>2</sub>&nbsp;下標', then(() => runCommand('subscript')), queryState('subscript')),
+    chip(ICONS.painter + ' 格式刷', then(() => togglePainter()), painting()),
+  ]);
+  const grid = tableGrid();
+  grid.querySelectorAll('.fmt-grid-sq').forEach((sq) => sq.addEventListener('click', closeSheet));
+  row('插入表格', [grid]);
+  row('插入', [
+    chip('分頁符號', then(() => insertBetweenBlocks('<hr data-edoc-break="page">'))),
+    chip('分隔線', then(() => insertBetweenBlocks('<hr>'))),
+  ]);
+  row('工具', [
+    chip(ICONS.find + ' 尋找與取代', then(() => openFindPanel(null))),
+    chip(ICONS.layout + ' 文件格式', then(() => openLayoutPanel(null, refresh)), false, !!state.session?.policy?.enabled),
+  ]);
+  document.body.append(sheet);
+}
+
 function queryState(cmd) { try { return document.queryCommandState(cmd); } catch { return false; } }
 function currentFont() {
   const a = anchorElement();
@@ -231,7 +284,9 @@ function currentSize() {
 function refresh() {
   if (!bar || bar.hidden) return;
   const on = (k, v) => bar.querySelectorAll(`[data-k="${k}"]`).forEach((b) => { b.classList.toggle('on', !!v); b.setAttribute('aria-pressed', String(!!v)); });
-  for (const [k, cmd] of [['bold', 'bold'], ['italic', 'italic'], ['underline', 'underline'], ['strike', 'strikeThrough'], ['bullet', 'insertUnorderedList'], ['number', 'insertOrderedList']]) on(k, queryState(cmd));
+  on('painter', painting());
+  bar.querySelectorAll('[data-k=painter]').forEach((b) => b.classList.toggle('sticky', painterSticky()));
+  for (const [k, cmd] of [['bold', 'bold'], ['italic', 'italic'], ['underline', 'underline'], ['strike', 'strikeThrough'], ['sup', 'superscript'], ['sub', 'subscript'], ['bullet', 'insertUnorderedList'], ['number', 'insertOrderedList']]) on(k, queryState(cmd));
   const block = currentBlock(), align = block ? getComputedStyle(block).textAlign : 'left';
   on('left', !['center', 'right', 'justify'].includes(align)); on('center', align === 'center'); on('right', align === 'right'); on('justify', align === 'justify');
   const tag = (block?.tagName || 'P').toLowerCase();
@@ -241,6 +296,14 @@ function refresh() {
   label('size', currentSize());
   const listOnly = !inList();
   bar.querySelectorAll('[data-k=indent],[data-k=outdent]').forEach((b) => { b.disabled = listOnly; });
+  // Lists inside table cells are not supported (Word's Tab moves between cells there).
+  const inCell = !!currentCell();
+  bar.querySelectorAll('[data-k=bullet],[data-k=number]').forEach((b) => { b.disabled = inCell; });
+  renderTableBar();
+  // Suggestions change words only; the document format is published by edit links.
+  const layoutBtn = bar.querySelector('[data-k=layout]');
+  layoutBtn.disabled = !!state.session?.policy?.enabled;
+  layoutBtn.title = layoutBtn.disabled ? '修訂建議不能改文件格式' : '文件格式（行距、段落間距、首行縮排、預設字型與字級）';
   const styleBtn = bar.querySelector('[data-k=style]');
   if (styleBtn) styleBtn.disabled = !!block && !/^(P|H1|H2|H3)$/.test(block.tagName);
   bar.querySelector('[data-k=color] .fmt-bar-color').style.background = lastColor;
@@ -267,9 +330,12 @@ function build() {
     b('italic', letter('I', 'font-style:italic;font-family:Tinos,serif'), `斜體 ${mod}I`, () => runCommand('italic')),
     b('underline', letter('U', 'text-decoration:underline'), `底線 ${mod}U`, () => runCommand('underline')),
     b('strike', letter('S', 'text-decoration:line-through'), `刪除線 ${isMac ? '⇧⌘X' : 'Ctrl+Shift+X'}`, () => runCommand('strikeThrough')),
+    b('sup', letter('X<sup>2</sup>', ''), `上標 ${isMac ? '⇧⌘=' : 'Ctrl+Shift+='}`, () => runCommand('superscript')),
+    b('sub', letter('X<sub>2</sub>', ''), `下標 ${isMac ? '⌘=' : 'Ctrl+='}`, () => runCommand('subscript')),
     b('color', colorInner, '文字色彩', (btn) => openPop(btn, colorPop, { wide: true })),
     b('mark', markInner, '螢光筆', (btn) => openPop(btn, colorPop, { wide: true })),
     b('clear', ICONS.clear, '清除格式', () => runCommand('removeFormat')),
+    b('painter', ICONS.painter, '格式刷（按兩下可連續套用，Esc 結束）', () => togglePainter()),
     sep(),
     b('left', ICONS.left, '靠左', () => runCommand('justifyLeft')),
     b('center', ICONS.center, '置中', () => runCommand('justifyCenter')),
@@ -281,8 +347,14 @@ function build() {
     b('outdent', ICONS.outdent, '減少縮排 ⇧Tab', () => runCommand('outdent')),
     b('indent', ICONS.indent, '增加縮排 Tab', () => runCommand('indent')),
     sep(),
+    dropdown('insert', '插入', 66, (btn) => openPop(btn, insertPop)),
     b('link', ICONS.link, `連結 ${mod}K`, (btn) => openLink(btn)),
+    sep(),
+    b('find', ICONS.find, `尋找與取代 ${isMac ? '⇧⌘H' : 'Ctrl+H'}`, (btn) => { closePop(); openFindPanel(btn); }),
+    b('layout', ICONS.layout, '文件格式（行距、段落間距、首行縮排、預設字型與字級）', (btn) => { closePop(); openLayoutPanel(btn, refresh); }),
+    b('more', ICONS.more, '更多工具', openMoreSheet, ' phone-only'),
   );
+  for (const k of ['insert']) bar.querySelector(`[data-k="${k}"] .fmt-label`).textContent = '插入';
 }
 
 // ---------- Keyboard and paste ----------
@@ -292,13 +364,16 @@ function onKeydown(e) {
   const key = e.key.toLowerCase();
   const take = (fn) => { e.preventDefault(); e.stopImmediatePropagation(); fn(); };
   if (e.key === 'Tab' && !m && !e.altKey && inList()) return take(() => runCommand(e.shiftKey ? 'outdent' : 'indent'));
+  if (e.key === 'Tab' && !m && !e.altKey && currentCell()) return take(() => moveCell(e.shiftKey ? -1 : 1));
   if (!m) return;
   // Bold / italic / underline: the same command in every browser (Safari's are menu shortcuts).
   if (!e.shiftKey && !e.altKey && (key === 'b' || key === 'i' || key === 'u')) return take(() => runCommand({ b: 'bold', i: 'italic', u: 'underline' }[key]));
   if (key === 'k' && !e.shiftKey) return take(() => openLink());
-  if (e.shiftKey && (e.code === 'Digit7' || key === '7' || key === '&')) return take(() => runCommand('insertOrderedList'));
-  if (e.shiftKey && (e.code === 'Digit8' || key === '8' || key === '*')) return take(() => runCommand('insertUnorderedList'));
+  if (key === 'h' && (e.shiftKey || !isMac)) return take(() => openFindPanel(bar.querySelector('[data-k=find]')));
+  if (e.shiftKey && (e.code === 'Digit7' || key === '7' || key === '&')) return take(() => currentCell() || runCommand('insertOrderedList'));
+  if (e.shiftKey && (e.code === 'Digit8' || key === '8' || key === '*')) return take(() => currentCell() || runCommand('insertUnorderedList'));
   if (e.shiftKey && key === 'x') return take(() => runCommand('strikeThrough'));
+  if (!e.altKey && (e.code === 'Equal' || key === '=' || key === '+')) return take(() => runCommand(e.shiftKey ? 'superscript' : 'subscript'));
   if (e.altKey && /^Digit[0-3]$/.test(e.code)) return take(() => applyStyle(e.code === 'Digit0' ? 'p' : 'h' + e.code.slice(5)));
   if (e.shiftKey && key === 'v') return take(async () => {
     try { const text = await navigator.clipboard.readText(); restore(); prepareForCommand(); document.execCommand('insertText', false, text); }
@@ -343,14 +418,19 @@ export function renderToolbar() {
   const show = drafting();
   bar.hidden = !show;
   document.body.classList.toggle('formatting', show);
-  if (!show) { closePop(); closeSheet(); return; }
+  if (!show) { closePop(); closeSheet(); closePanel(); renderTableBar(); if (painting()) stopPainter(); return; }
   loadAllFonts();
   refresh();
 }
 
 export function initToolbar() {
   if (!document.getElementById('formatBar')) return;
+  onCommandDone(() => { closePop(); refresh(); });
   build();
+  initTableTools();
+  initPanels();
+  initFindReplace();
+  initFormatPainter(refresh);
   el.doc.addEventListener('keydown', onKeydown);
   el.doc.addEventListener('paste', onPaste);
   document.addEventListener('selectionchange', () => { if (selectionInDoc()) { remember(); refresh(); } });

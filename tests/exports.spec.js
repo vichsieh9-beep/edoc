@@ -24,7 +24,7 @@ function unzip(buf) {
 const SAMPLE = '<h1>樣張</h1><p style="text-align:center"><strong>粗</strong><em>斜</em><u>底</u><s>刪</s>X<sup>2</sup></p>' +
   '<h2>章節</h2><p><span style="color:#ff0000">紅</span><span style="background-color:#ffff00">黃</span><span style="font-family:\'Noto Serif TC\',serif">宋</span><span style="font-size:14pt">大</span>' +
   '<a href="https://example.com/a?b=1&amp;c=2">連結</a></p><h3>小節</h3><ul><li>一<ul><li>二</li></ul></li></ul><ol><li>甲</li></ol>' +
-  '<table><tbody><tr><th>欄</th><td colspan="2">合併</td></tr></tbody></table>';
+  '<table><tbody><tr><th>欄</th><th>欄二</th><th>欄三</th></tr><tr><th>欄</th><td colspan="2">合併</td></tr></tbody></table><hr data-edoc-break="page"><p>次頁</p>';
 
 test('the Word copy carries the formatting, the version and the official-version note', () => {
   const parts = unzip(docxFromHtml({ html: SAMPLE, title: '樣張', version: 'v1.0', hash: 'c'.repeat(64), created: '2026-10-20T01:00:00Z' }));
@@ -35,6 +35,12 @@ test('the Word copy carries the formatting, the version and the official-version
   expect(doc).toContain('<w:jc w:val="center"/>');
   for (const tag of ['<w:b/>', '<w:i/>', '<w:u w:val="single"/>', '<w:strike/>', '<w:vertAlign w:val="superscript"/>', '<w:color w:val="FF0000"/>', '<w:highlight w:val="yellow"/>', 'w:eastAsia="Noto Serif TC"', '<w:sz w:val="28"/>', '<w:gridSpan w:val="2"/>']) expect(doc, tag).toContain(tag);
   expect(doc).toMatch(/<w:numPr><w:ilvl w:val="1"\/><w:numId w:val="1"\/><\/w:numPr>/);
+  // R2.17 tables: full width, fixed equal columns, a grey header row that repeats on each page.
+  expect(doc).toContain('<w:tblW w:w="5000" w:type="pct"/>');
+  expect(doc).toContain('<w:tblLayout w:type="fixed"/>');
+  expect(doc).toContain('<w:br w:type="page"/>');
+  expect(doc).toContain('<w:tr><w:trPr><w:tblHeader/></w:trPr>');
+  expect(doc).toContain('<w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>');
   expect(doc).toMatch(/<w:hyperlink r:id="rIdLink1">/);
   expect(parts['word/_rels/document.xml.rels'].toString()).toContain('Target="https://example.com/a?b=1&amp;c=2" TargetMode="External"');
   expect(parts['word/numbering.xml'].toString()).toContain('<w:numFmt w:val="decimal"/>');
@@ -43,6 +49,19 @@ test('the Word copy carries the formatting, the version and the official-version
   // Same input, same bytes: the copies are rebuilt with every deploy.
   expect(docxFromHtml({ html: SAMPLE, title: '樣張', version: 'v1.0', hash: 'c'.repeat(64), created: '2026-10-20T01:00:00Z' }))
     .toEqual(docxFromHtml({ html: SAMPLE, title: '樣張', version: 'v1.0', hash: 'c'.repeat(64), created: '2026-10-20T01:00:00Z' }));
+});
+
+test('the Word copy carries the version\'s document format (R2.17)', () => {
+  const parts = unzip(docxFromHtml({ html: '<p>內文</p><ul><li>項</li></ul><h2>章</h2>', title: 't', version: 'v1', hash: 'c'.repeat(64), layout: { font: 'serif', size: '14', lineHeight: '1.5', spacing: 'wide', indent: '2' } }));
+  const styles = parts['word/styles.xml'].toString(), doc = parts['word/document.xml'].toString();
+  expect(styles).toContain('w:eastAsia="Noto Serif TC"');
+  expect(styles).toContain('<w:sz w:val="28"/>');
+  expect(styles).toContain('<w:spacing w:after="240" w:line="420" w:lineRule="atLeast"/>');
+  // First-line indent on body paragraphs, not on list items or headings.
+  expect(doc.match(/w:firstLineChars="200"/g)).toHaveLength(1);
+  const plain = unzip(docxFromHtml({ html: '<p>內文</p>', title: 't', version: 'v1', hash: 'c'.repeat(64) }))['word/styles.xml'].toString();
+  expect(plain).toContain('<w:spacing w:after="120" w:line="360" w:lineRule="auto"/>');
+  expect(plain).toContain('<w:sz w:val="24"/>');
 });
 
 test('an edited Word copy comes back through 新增文件 › 上傳 Word with its headings, lists and bold', async ({ page }) => {

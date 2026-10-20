@@ -2,6 +2,7 @@
 // A .docx is a zip of XML parts; word/document.xml holds the body, styles.xml names the
 // headings, numbering.xml tells bullets from numbered lists, and the relationships hold links.
 import { escapeText, normalizeImportedHtml } from './import.js';
+import { textColor, highlightColor, fontFor, fontSizeFor } from './content-model.js';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -48,6 +49,35 @@ const kids = (el, name) => (el ? [...el.children].filter((c) => isW(c, name)) : 
 const kid = (el, name) => kids(el, name)[0] || null;
 const val = (el) => (el ? el.getAttributeNS(W, 'val') : null);
 const on = (el) => !!el && !/^(0|false|off|none)$/i.test(val(el) || '');
+// Word's highlighter colours; EDoc's palette has the same five.
+const HIGHLIGHTS = { yellow: '#ffff00', green: '#00ff00', cyan: '#00ffff', magenta: '#ff00ff', lightGray: '#c0c0c0' };
+const JUSTIFY = { center: 'center', right: 'right', end: 'right', both: 'justify', distribute: 'justify' };
+const KEPT_NAMES = { u: '底線', s: '刪除線', sup: '上標', sub: '下標', color: '文字色彩', bg: '螢光筆', font: '字型', size: '字級', align: '對齊', h3: '標題 3' };
+
+// A run's formatting (R2.17): what EDoc can keep, as tags and span styles.
+function runFormat(rPr, href) {
+  const f = { b: on(kid(rPr, 'b')), i: on(kid(rPr, 'i')), href };
+  if (!rPr) return f;
+  const u = kid(rPr, 'u');
+  if (u && val(u) !== 'none') f.u = true;
+  if (on(kid(rPr, 'strike')) || on(kid(rPr, 'dstrike'))) f.s = true;
+  const va = val(kid(rPr, 'vertAlign'));
+  if (va === 'superscript') f.sup = true; else if (va === 'subscript') f.sub = true;
+  const color = val(kid(rPr, 'color'));
+  // Black is Word's automatic text colour, not a choice.
+  if (color && /^[0-9a-f]{6}$/i.test(color) && color !== '000000') f.color = '#' + color.toLowerCase();
+  const hl = val(kid(rPr, 'highlight'));
+  const fill = kid(rPr, 'shd')?.getAttributeNS(W, 'fill');
+  if (hl && hl !== 'none') f.bg = HIGHLIGHTS[hl] || hl;
+  else if (fill && /^[0-9a-f]{6}$/i.test(fill)) f.bg = '#' + fill.toLowerCase();
+  const sz = val(kid(rPr, 'sz'));
+  if (sz && /^\d+$/.test(sz)) f.size = String(Number(sz) / 2);
+  const fonts = kid(rPr, 'rFonts');
+  const font = fonts && (fonts.getAttributeNS(W, 'eastAsia') || fonts.getAttributeNS(W, 'ascii') || fonts.getAttributeNS(W, 'hAnsi'));
+  if (font) f.font = font;
+  return f;
+}
+const formatId = (f) => JSON.stringify([f.b, f.i, f.href, f.u, f.s, f.sup, f.sub, f.color, f.bg, f.size, f.font]);
 
 function readStyles(xml) {
   const headings = {}, numbering = {};
@@ -102,6 +132,16 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
     headings: 0, paragraphs: 0, listItems: 0, tables: 0, images: 0, textBoxes: 0, trackedChanges: 0,
     comments: commentsXml ? commentsXml.getElementsByTagNameNS(W, 'comment').length : 0,
     headersFooters: zip.names().filter((n) => /^word\/(header|footer)\d*\.xml$/.test(n)).length,
+    // Formatting EDoc cannot keep: colours outside the palette, fonts and sizes it does not have.
+    dropped: { color: 0, bg: 0, fonts: [], sizes: [] },
+  };
+  const fontChars = new Map(), sizeChars = new Map();
+  const count = (map, key, n) => map.set(key, (map.get(key) || 0) + n);
+  const unsupported = (f, n) => {
+    if (f.color && !textColor(f.color)) report.dropped.color++;
+    if (f.bg && !highlightColor(f.bg)) report.dropped.bg++;
+    count(fontChars, f.font || '', n);
+    count(sizeChars, f.size || '', n);
   };
 
   // Runs → inline html; neighbouring runs with the same formatting are merged.
@@ -109,14 +149,15 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
     const parts = [];
     const push = (html, fmt) => {
       const last = parts[parts.length - 1];
-      if (last && last.b === fmt.b && last.i === fmt.i && last.href === fmt.href) last.html += html;
-      else parts.push({ html, ...fmt });
+      if (last && last.id === formatId(fmt)) last.html += html;
+      else parts.push({ html, fmt, id: formatId(fmt) });
     };
     const walk = (node, href) => {
       for (const c of node.children) {
         if (isW(c, 'r')) {
-          const rPr = kid(c, 'rPr');
-          const fmt = { b: on(kid(rPr, 'b')), i: on(kid(rPr, 'i')), href };
+          const fmt = runFormat(kid(c, 'rPr'), href);
+          const chars = [...c.children].filter((x) => isW(x, 't')).reduce((n, x) => n + x.textContent.trim().length, 0);
+          if (chars) unsupported(fmt, chars);
           for (const x of c.children) {
             if (isW(x, 't')) push(escapeText(x.textContent), fmt);
             else if (isW(x, 'tab')) push(' ', fmt);
@@ -137,11 +178,12 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
       }
     };
     walk(p, null);
-    return parts.map(({ html, b, i, href }) => {
+    return parts.map(({ html, fmt: f }) => {
       let h = html;
-      if (i) h = `<em>${h}</em>`;
-      if (b) h = `<strong>${h}</strong>`;
-      if (href) h = `<a href="${escapeText(href)}">${h}</a>`;
+      const style = [f.color && `color:${f.color}`, f.bg && `background-color:${f.bg}`, f.font && `font-family:'${escapeText(f.font.replace(/['\\;]/g, ''))}'`, f.size && `font-size:${f.size}pt`].filter(Boolean).join(';');
+      if (style) h = `<span style="${style}">${h}</span>`;
+      for (const tag of ['sub', 'sup', 's', 'u', 'em', 'strong']) if (f[{ em: 'i', strong: 'b' }[tag] || tag]) h = `<${tag}>${h}</${tag}>`;
+      if (f.href) h = `<a href="${escapeText(f.href)}">${h}</a>`;
       return h;
     }).join('').replace(/^(\s|<br>)+|(\s|<br>)+$/g, '');
   }
@@ -153,11 +195,12 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
     const level = styleId in styles.headings ? styles.headings[styleId] : null;
     const html = inline(p);
     if (!html) return null;
-    if (level !== null) return { type: 'heading', level, html };
+    const align = JUSTIFY[val(kid(pPr, 'jc'))] || null;
+    if (level !== null) return { type: 'heading', level, html, align };
     if (numPr && numPr.numId && numPr.numId !== '0') {
-      return { type: 'item', ilvl: numPr.ilvl, tag: ordered(numPr.numId, numPr.ilvl) ? 'ol' : 'ul', html };
+      return { type: 'item', ilvl: numPr.ilvl, tag: ordered(numPr.numId, numPr.ilvl) ? 'ol' : 'ul', html, align };
     }
-    return { type: 'p', html };
+    return { type: 'p', html, align };
   }
 
   function table(tbl) {
@@ -198,7 +241,24 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
   };
   collect(body);
 
-  return { html: blocksToHtml(blocks, report, title), report };
+  const html = blocksToHtml(blocks, report, title, { formatting: true });
+  report.kept = keptFormats(html);
+  // The body's own font and size become the document's (see dropSourceBody); other fonts and
+  // sizes EDoc does not have are reported.
+  const mostUsed = (map) => [...map].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const bodyFont = mostUsed(fontChars), bodySize = mostUsed(sizeChars);
+  report.dropped.fonts = [...fontChars.keys()].filter((f) => f && f !== bodyFont && !fontFor(f));
+  report.dropped.sizes = [...sizeChars.keys()].filter((z) => z && z !== bodySize && !fontSizeFor(z + 'pt'));
+  return { html, report };
+}
+
+/** Names of the formatting kinds an imported html keeps (for the conversion report). */
+export function keptFormats(html) {
+  const found = new Set();
+  const tags = { u: /<u>/, s: /<s>/, sup: /<sup>/, sub: /<sub>/, h3: /<h3[ >]/, align: /text-align:/ };
+  for (const [k, re] of Object.entries(tags)) if (re.test(html)) found.add(k);
+  for (const [k, prop] of [['color', /[;"]color:/], ['bg', /background-color:/], ['font', /font-family:/], ['size', /font-size:/]]) if (prop.test(html)) found.add(k);
+  return [...Object.keys(KEPT_NAMES)].filter((k) => found.has(k)).map((k) => KEPT_NAMES[k]);
 }
 
 /**
@@ -206,7 +266,7 @@ export async function docxToHtml(buffer, { title = '' } = {}) {
  * title, 1… for heading sizes), a list item (ilvl, tag ul/ol), a paragraph or a ready-made table.
  * Counts headings, paragraphs and list items into `report`.
  */
-export function blocksToHtml(blocks, report, title = '') {
+export function blocksToHtml(blocks, report, title = '', { formatting = false } = {}) {
   // EDoc has one title (h1) and one section level (h2). A single top-level heading at the very
   // start is the title; otherwise the top level becomes sections and the document name the title.
   const levels = blocks.filter((b) => b.type === 'heading').map((b) => b.level);
@@ -214,6 +274,9 @@ export function blocksToHtml(blocks, report, title = '') {
   const titled = levels.length > 0 && levels.filter((l) => l === top).length === 1 && blocks[0].type === 'heading' && blocks[0].level === top;
   const rest = levels.filter((l) => !titled || l !== top);
   const section = titled ? (rest.length ? Math.min(...rest) : Infinity) : top;
+  const deeper = levels.filter((l) => l > section);
+  const subsection = deeper.length ? Math.min(...deeper) : Infinity;
+  const attrs = (b) => (formatting && b.align ? ` style="text-align:${b.align}"` : '');
 
   const out = [];
   const stack = [];
@@ -228,20 +291,22 @@ export function blocksToHtml(blocks, report, title = '') {
         else { out.push(`</li></${stack.pop()}>`, `<${b.tag}>`); stack.push(b.tag); }
       }
       while (stack.length < target) { out.push(`<${b.tag}>`); stack.push(b.tag); }
-      out.push(`<li>${b.html}`);
+      out.push(`<li${attrs(b)}>${b.html}`);
       continue;
     }
     closeAll();
     if (b.type === 'heading') {
       report.headings++;
-      if (titled && b === blocks[0]) out.push(`<h1>${b.html}</h1>`);
-      else if (b.level === section) out.push(`<h2>${b.html}</h2>`);
-      else out.push(`<p><strong>${b.html}</strong></p>`);
+      if (titled && b === blocks[0]) out.push(`<h1${attrs(b)}>${b.html}</h1>`);
+      else if (b.level === section) out.push(`<h2${attrs(b)}>${b.html}</h2>`);
+      // With formatting (Word, R2.17), the level below the sections is 標題 3.
+      else if (formatting && b.level === subsection) out.push(`<h3${attrs(b)}>${b.html}</h3>`);
+      else out.push(`<p${attrs(b)}><strong>${b.html}</strong></p>`);
     } else if (b.type === 'p') {
       report.paragraphs++;
-      out.push(`<p>${b.html}</p>`);
+      out.push(`<p${attrs(b)}>${b.html}</p>`);
     } else out.push(b.html);
   }
   closeAll();
-  return normalizeImportedHtml(out.join(''), { title }).html;
+  return normalizeImportedHtml(out.join(''), { title, formatting }).html;
 }

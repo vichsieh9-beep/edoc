@@ -83,7 +83,7 @@ export function renderDocument(doc, { templates, script, slug, config = {} }) {
     title: escapeHtml(title),
     latestVersion: escapeHtml(latestVersion),
     engineVersion: ENGINE_VERSION,
-    fontLinks: fontsUsedIn(Object.values(versions).map((v) => v.html)).map((f) => `<link rel="stylesheet" href="${fontStylesheet(f)}" data-font="${f.id}">`).join('\n'),
+    fontLinks: fontsUsedIn(Object.values(versions).map((v) => v.html), Object.values(versions).map((v) => v.layout)).map((f) => `<link rel="stylesheet" href="${fontStylesheet(f)}" data-font="${f.id}">`).join('\n'),
     style: templates.style + documentTypographyCss('.doc') + '\n',
     // pdfVersions: every formal version gets a PDF when the site is deployed (npm run pdf).
     documentMeta: embedJson({ title, slug, publishApi: config.publishApi || '', pdfVersions: versionOrder(versions) }),

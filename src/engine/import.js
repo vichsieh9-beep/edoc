@@ -7,7 +7,9 @@ export const escapeText = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&a
 
 const BLOCKS = 'p,h1,h2,h3,h4,h5,h6,ul,ol,li,table,div,blockquote';
 const KEEP_ATTRS = { A: ['href'], TD: ['colspan', 'rowspan'], TH: ['colspan', 'rowspan'] };
-const INLINE_TOP = /^(STRONG|EM|B|I|A|SPAN|BR)$/;
+const INLINE_TOP = /^(STRONG|EM|B|I|U|S|SUP|SUB|A|SPAN|BR)$/;
+// With formatting (Word files, R2.17) text styles and alignment stay for the content model.
+const STYLE_ATTR = ['SPAN', 'P', 'H1', 'H2', 'H3', 'LI'];
 
 /** Plain text: one paragraph per line; lines starting with "- ", "* ", "•" or "・" become a bullet list. */
 export function textToHtml(text) {
@@ -106,8 +108,10 @@ function stylesToSpans(root) {
 /**
  * Normalize html for a new document. Returns { html, images }: images counts pictures left out
  * (the first version keeps text only). Unless it starts with an h1, the document name becomes the title.
+ * With `formatting` the supported formatting is kept (Word files, R2.17): underline, strikethrough,
+ * super/subscript, palette colours, bundled fonts, listed sizes, alignment and 標題 3.
  */
-export function normalizeImportedHtml(html, { title = '' } = {}) {
+export function normalizeImportedHtml(html, { title = '', formatting = false } = {}) {
   const root = inertContainer(html);
   const doc = root.ownerDocument;
   const walker = doc.createTreeWalker(root, 128 /* NodeFilter.SHOW_COMMENT */);
@@ -122,17 +126,18 @@ export function normalizeImportedHtml(html, { title = '' } = {}) {
   wordLists(root);
   styleToTags(root);
   // Inline wrappers around whole blocks (common in clipboard html) are dropped.
-  root.querySelectorAll('span,b,strong,i,em,u,font,a').forEach((e) => { if (e.querySelector(BLOCKS)) e.replaceWith(...e.childNodes); });
-  root.querySelectorAll('h3,h4,h5,h6').forEach((h) => wrapChildren(rename(h, 'p'), 'strong'));
+  if (formatting) dropSourceBody(root);
+  root.querySelectorAll('span,b,strong,i,em,u,s,sup,sub,font,a').forEach((e) => { if (e.querySelector(BLOCKS)) e.replaceWith(...e.childNodes); });
+  root.querySelectorAll(formatting ? 'h4,h5,h6' : 'h3,h4,h5,h6').forEach((h) => wrapChildren(rename(h, 'p'), 'strong'));
   root.querySelectorAll('div').forEach((d) => {
     if (d.querySelector(BLOCKS)) d.replaceWith(...d.childNodes);
     else rename(d, 'p');
   });
   for (const el of root.querySelectorAll('*')) {
-    const keep = KEEP_ATTRS[el.tagName] || [];
+    const keep = (KEEP_ATTRS[el.tagName] || []).concat(formatting && STYLE_ATTR.includes(el.tagName) ? ['style'] : []);
     for (const a of [...el.attributes]) if (!keep.includes(a.name)) el.removeAttribute(a.name);
   }
-  root.querySelectorAll('p,h1,h2,li').forEach((b) => {
+  root.querySelectorAll('p,h1,h2,h3,li').forEach((b) => {
     if (!b.textContent.trim() && !b.querySelector('ul,ol,table')) b.remove();
   });
 
@@ -158,7 +163,7 @@ export function normalizeImportedHtml(html, { title = '' } = {}) {
   }
   const clean = inertContainer(sanitizeRevisionHtml(root.innerHTML));
   // Attribute-free spans and links whose address was unsafe carry nothing.
-  clean.querySelectorAll('span,a:not([href])').forEach((e) => e.replaceWith(...e.childNodes));
+  clean.querySelectorAll(formatting ? 'span:not([style]),a:not([href])' : 'span,a:not([href])').forEach((e) => e.replaceWith(...e.childNodes));
   return { html: [...clean.childNodes].map((n) => (n.nodeType === 1 ? n.outerHTML : n.textContent.trim())).filter(Boolean).join('\n'), images };
 }
 
@@ -168,6 +173,43 @@ export function normalizeImportedHtml(html, { title = '' } = {}) {
  * tables, links) and drop the rest. Text copied from EDoc itself loses its revision marks:
  * deleted wording and draft ghosts are not current content.
  */
+// The size and font that most of the pasted text uses are the source's body text (Google Docs
+// 11pt Arial, Word 12pt 新細明體…): they are dropped so the text matches the document; sizes and
+// fonts that differ from them (headings, emphasis) are kept.
+function dropSourceBody(root) {
+  const share = (prop) => {
+    const counts = new Map(); let total = 0;
+    const walker = root.ownerDocument.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+    let t;
+    while ((t = walker.nextNode())) {
+      const n = t.textContent.replace(/\s+/g, '').length;
+      if (!n) continue;
+      total += n;
+      let key = '';
+      for (let p = t.parentElement; p && p !== root; p = p.parentElement) {
+        const m = (p.getAttribute('style') || '').match(new RegExp('(?:^|;)\\s*' + prop + '\\s*:\\s*([^;]+)', 'i'));
+        if (m) { key = prop === 'font-family' ? m[1].split(',')[0].replace(/["']/g, '').trim().toLowerCase() : m[1].trim().toLowerCase(); break; }
+      }
+      counts.set(key, (counts.get(key) || 0) + n);
+    }
+    const [key, n] = [...counts].sort((a, b) => b[1] - a[1])[0] || [];
+    return key && n / total >= 0.5 ? key : null;
+  };
+  for (const prop of ['font-size', 'font-family']) {
+    const body = share(prop);
+    if (!body) continue;
+    for (const el of root.querySelectorAll('[style]')) {
+      const kept = el.getAttribute('style').split(';').filter((d) => {
+        const [name, value = ''] = d.split(':');
+        if (name.trim().toLowerCase() !== prop) return true;
+        const v = prop === 'font-family' ? value.split(',')[0].replace(/["']/g, '').trim().toLowerCase() : value.trim().toLowerCase();
+        return v !== body;
+      });
+      el.setAttribute('style', kept.join(';'));
+    }
+  }
+}
+
 export function normalizePastedHtml(html) {
   const root = inertContainer(html);
   const doc = root.ownerDocument;
@@ -179,6 +221,7 @@ export function normalizePastedHtml(html) {
   wordLists(root);
   styleToTags(root, { decorations: true });
   stylesToSpans(root);
+  dropSourceBody(root);
   root.querySelectorAll('span,b,strong,i,em,u,s,font,a').forEach((e) => { if (e.querySelector(BLOCKS)) e.replaceWith(...e.childNodes); });
   root.querySelectorAll('h4,h5,h6').forEach((h) => rename(h, 'h3'));
   root.querySelectorAll('[class]').forEach((e) => e.removeAttribute('class'));

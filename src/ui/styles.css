@@ -185,6 +185,9 @@ details ul{margin-top:6px}
 .doc.clean span.format-changed{text-decoration:none}
 /* A hidden whole-block deletion still marks its preceding surviving block. */
 .doc.clean :is(h1,h2,h3,p,li,td,th,blockquote):not(.deleted):has(+ .deleted){border-left:3px solid #b91c1c;padding-left:10px}
+/* Table cells keep their grid lines (R2.17): the change bar is drawn inside the cell. */
+.doc :is(td,th):has(.changed,.deleted,.format-changed),.doc :is(td,th):is(.changed,.format-changed),.doc :is(td,th).revision-changed,
+.doc.clean :is(td,th):not(.deleted):has(+ .deleted){border-left:0.6pt solid #999;padding-left:5pt;box-shadow:inset 3px 0 0 #b91c1c}
 ::highlight(edoc-insertions){color:#1d4ed8;text-decoration:underline double}
 ::highlight(edoc-formats){text-decoration:underline dotted #1d4ed8 2px}
 @media(max-width:720px){
@@ -197,7 +200,8 @@ details ul{margin-top:6px}
  .document-review{display:block;max-width:none}
  .revision-markup{display:none!important}
  .doc .changed,.doc span.format-changed{color:inherit!important;text-decoration:none!important}
- .doc :is(h1,h2,h3,p,li,td,th,blockquote){border-left:none!important;padding-left:0}
+ .doc :is(h1,h2,h3,p,li,blockquote){border-left:none!important;padding-left:0}
+ .doc :is(td,th){box-shadow:none!important}
  ::highlight(edoc-insertions),::highlight(edoc-formats){color:inherit;text-decoration:none}
 }
 /* Sharing permissions and private collaboration use the existing plain Word review style. */
@@ -251,7 +255,7 @@ details ul{margin-top:6px}
 .publication-dialog .preview-document td,.publication-dialog .preview-document th{overflow-wrap:anywhere}
 
 /* Formatting toolbar of a Draft (R2.16): third header row on desktop, bottom bar on phones. */
-.fmt-bar{display:flex;align-items:center;gap:2px;max-width:1040px;margin:12px auto 0;padding:4px 6px;background:#fff;
+.fmt-bar{display:flex;align-items:center;gap:2px;max-width:1180px;margin:12px auto 0;padding:4px 6px;background:#fff;
   border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.04);font-size:13px;color:#27272a;overflow-x:auto;scrollbar-width:none}
 .fmt-bar::-webkit-scrollbar{display:none}
 .fmt-sep{width:1px;height:22px;background:#e4e4e7;margin:0 5px;flex:none}
@@ -298,7 +302,8 @@ details ul{margin-top:6px}
     padding:6px 8px calc(6px + env(safe-area-inset-bottom));background:rgba(250,250,250,.98);box-shadow:0 -6px 18px rgba(0,0,0,.06)}
   .fmt-bar .fmt-btn{min-width:44px;height:44px;border-radius:9px}
   .fmt-bar .fmt-btn.drop,.fmt-bar [data-k=redo],.fmt-bar [data-k=strike],.fmt-bar [data-k=mark],.fmt-bar [data-k=clear],
-  .fmt-bar [data-k=center],.fmt-bar [data-k=right],.fmt-bar [data-k=justify],.fmt-bar [data-k=outdent],.fmt-bar .fmt-sep{display:none}
+  .fmt-bar [data-k=center],.fmt-bar [data-k=right],.fmt-bar [data-k=justify],.fmt-bar [data-k=outdent],.fmt-bar .fmt-sep,
+  .fmt-bar [data-k=sup],.fmt-bar [data-k=sub],.fmt-bar [data-k=painter],.fmt-bar [data-k=find],.fmt-bar [data-k=layout]{display:none}
   .fmt-bar .phone-only{display:inline-flex}
   body.formatting .wrap{padding-bottom:96px}
   /* A backdrop filter would make the header the bar's containing block: keep it at the screen bottom. */
@@ -322,3 +327,82 @@ details ul{margin-top:6px}
 .download-item:first-child{border-bottom:1px solid #eee;border-radius:8px 8px 0 0;margin-bottom:4px}
 .download-note{font-size:11.5px;color:#71717a;padding:6px 11px 4px;line-height:1.5;margin:0}
 @media(max-width:720px){.download-menu{width:min(300px,calc(100vw - 24px))}}
+
+/* Page break (R2.17): a labelled dashed line on screen; the PDF and Word copies start a new page. */
+.doc hr[data-edoc-break]{border:none;border-top:1px dashed #9ca3af;margin:26px 0;overflow:visible;position:relative;height:0}
+.doc hr[data-edoc-break]::after{content:'分頁（PDF 從這裡換新頁）';position:absolute;left:50%;top:-9px;transform:translateX(-50%);
+  background:var(--paper);padding:0 8px;font-size:12px;line-height:18px;color:#9ca3af;white-space:nowrap}
+@media print{.doc hr[data-edoc-break]{border:none;margin:0}.doc hr[data-edoc-break]::after{content:none}}
+
+/* Tables (R2.17): borders and the header row come from the shared type scale (typography.js). */
+.doc table{margin:14px 0}
+.fmt-grid-wrap{padding:2px 2px 6px;border-bottom:1px solid #eee;margin-bottom:4px}
+.fmt-grid-size{font-weight:400;margin-left:6px}
+.fmt-grid{display:grid;grid-template-columns:repeat(6,20px);gap:3px;padding:4px 8px}
+.fmt-grid-sq{appearance:none;width:20px;height:20px;padding:0;border:1px solid #d4d4d8;border-radius:3px;background:#fff;cursor:pointer}
+.fmt-grid-sq.on{background:#dbeafe;border-color:#60a5fa}
+.fmt-table-bar{position:fixed;z-index:55;display:flex;gap:2px;padding:3px;background:#fff;border:1px solid var(--line);border-radius:9px;
+  box-shadow:0 6px 18px rgba(0,0,0,.12);max-width:calc(100vw - 16px);overflow-x:auto;scrollbar-width:none}
+.fmt-table-bar::-webkit-scrollbar{display:none}
+.fmt-table-bar button{flex:none;border:0;background:transparent;padding:4px 9px;font-size:13px;border-radius:6px;white-space:nowrap}
+.fmt-table-bar button:hover{background:#f4f4f5}
+.fmt-table-bar button.danger{color:#b91c1c}
+.fmt-table-bar [data-k=row-delete]{margin-left:7px;box-shadow:-4px 0 0 -3px #e4e4e7}
+@media(max-width:720px){.fmt-grid{grid-template-columns:repeat(6,32px);gap:5px}.fmt-grid-sq{width:32px;height:32px}
+  .fmt-table-bar button{padding:8px 11px;font-size:14px}}
+@media print{.fmt-table-bar{display:none!important}}
+
+/* Toolbar panels (R2.17): document format, find & replace. A bottom sheet on phones. */
+.fmt-panel{position:fixed;z-index:65;width:var(--panel-width,380px);max-width:calc(100vw - 16px);background:#fff;border:1px solid var(--line);
+  border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.18);padding:14px 16px 16px;font-size:14px}
+.fmt-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.fmt-panel-head b{font-size:15px}
+.fmt-panel-close{border:0;background:transparent;font-size:20px;line-height:1;padding:2px 8px;color:#71717a}
+.fmt-panel-row{display:flex;align-items:center;gap:12px;margin:9px 0}
+.fmt-panel-row>label{flex:0 0 74px;color:#3f3f46}
+.fmt-select{font:inherit;padding:6px 8px;border:1px solid #c8c8cc;border-radius:7px;background:#fff;min-width:150px}
+.fmt-seg{display:inline-flex;border:1px solid #c8c8cc;border-radius:8px;overflow:hidden}
+.fmt-seg button{border:0;border-radius:0;padding:6px 11px;background:#fff;font-size:14px}
+.fmt-seg button+button{border-left:1px solid #e4e4e7}
+.fmt-seg button.on{background:#e8f0fe;color:#1a4fb5;font-weight:600}
+.fmt-panel-note{margin:12px 0 0;font-size:12.5px;color:#52525b;line-height:1.6}
+.fmt-panel-note.muted{margin-top:4px;color:#a1a1aa}
+.fmt-panel-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media(max-width:720px){
+  .fmt-panel{left:0!important;right:0;top:auto!important;bottom:0;width:auto;max-width:none;max-height:62vh;overflow-y:auto;
+    border-radius:16px 16px 0 0;padding:12px 16px calc(16px + env(safe-area-inset-bottom));z-index:85}
+  .fmt-panel-row>label{flex-basis:68px}
+  .fmt-seg button{padding:9px 12px}
+}
+@media print{.fmt-panel{display:none!important}}
+
+/* Find & replace (R2.17): all matches yellow, the current one orange. */
+::highlight(edoc-find){background-color:#fde68a}
+::highlight(edoc-find-current){background-color:#fb923c;color:#111}
+.fmt-panel.find .fmt-panel-row>label{flex-basis:48px}
+.fmt-panel.find .fmt-input{flex:1;width:auto;max-width:none;margin:0}
+.find-actions{display:flex;align-items:center;gap:6px;margin:12px 0 10px}
+.find-actions button{white-space:nowrap;padding:6px 12px}
+.find-count{flex:1;font-size:13px;color:#71717a;white-space:nowrap}
+.find-overview{border-top:1px solid #eee;padding-top:10px;font-size:12.5px;font-weight:600;color:#71717a}
+.find-list{max-height:min(46vh,420px);overflow-y:auto;margin:6px -8px 0;padding:0 2px}
+.find-row{display:flex;gap:12px;width:100%;text-align:left;border:0;border-radius:8px;background:transparent;padding:8px 10px;font-size:14px;line-height:1.55}
+.find-row:hover{background:#f4f4f5}
+.find-row.on{background:#e8f0fe}
+.find-num{flex:0 0 18px;color:#71717a;font-variant-numeric:tabular-nums}
+.find-body{display:flex;flex-direction:column;min-width:0}
+.find-sec{font-size:12px;color:#71717a}
+.find-ctx mark{background:#fde68a;color:inherit;border-radius:2px}
+.find-row.on .find-ctx mark{background:#fb923c}
+@media(max-width:720px){
+  .fmt-panel.find{max-height:60vh;display:flex;flex-direction:column}
+  .fmt-panel.find .find-list{max-height:none;flex:1;overflow-y:auto}
+  .find-actions{flex-wrap:wrap}
+}
+
+/* Format painter (R2.17): the pointer shows that a selection will be painted. */
+.doc.painting{cursor:copy}
+.fmt-btn.on.sticky{box-shadow:inset 0 0 0 1.5px #60a5fa}
+.fmt-chip svg{vertical-align:-4px;margin-right:3px}
+.fmt-sheet .fmt-grid-wrap{border:0;padding:0;margin:0}
+.fmt-sheet .fmt-grid-wrap .fmt-pop-title{display:none}
