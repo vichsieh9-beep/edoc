@@ -21,7 +21,8 @@ test('header: title on top, reading controls, then editing and sharing; engine v
   await expect(head.locator('.read-bar #versionButton')).toBeVisible();
   await expect(head.locator('.read-bar #toggleChanges')).toHaveText('所有標記');
   await expect(head.locator('#editGroup')).toContainText('正式版・唯讀');
-  await expect(head.locator('.share-group')).toHaveText(/複製公開網址\s*複製全文\s*下載 PDF/);
+  await expect(head.locator('.share-group')).toHaveText(/^\s*複製公開網址\s*複製全文\s*下載\s*▼/);
+  await expect(page.locator('#downloadMenu')).toBeHidden();
   await expect(head).not.toContainText('Engine');
   await expect(page.locator('.engine-foot')).toHaveText(/^EDoc R\d+\.\d+$/);
   for (const id of ['exportReviewBtn', 'exportRevisionBtn', 'importRevisionBtn', 'printBtn', 'editorBtn', 'publishStatus']) {
@@ -209,6 +210,43 @@ test('下載 PDF points at the official PDF of the version on screen, and is off
   await page.locator('#versionMenu .version-item', { hasText: /^v0\.7/ }).click();
   await startRevision(page);
   await expect(pdf).toHaveClass(/disabled/);
+});
+
+test('下載 menu offers the official PDF, a Word copy and the pages as images of the version on screen', async ({ page }) => {
+  await openDoc(page);
+  await page.locator('#downloadBtn').click();
+  const menu = page.locator('#downloadMenu');
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('.download-item')).toHaveText([/^PDF正式版/, /^Word（\.docx）/, /^圖片（PNG）/]);
+  await expect(page.locator('#docxBtn')).toHaveAttribute('href', 'export/v0.7.docx');
+  await expect(page.locator('#docxBtn')).toHaveAttribute('download', '【QA】資深遊戲測試工程師_v0.7.docx');
+  await expect(page.locator('#downloadNote')).toContainText('目前選的版本（v0.7）');
+  // A document longer than one page: the images come as a zip.
+  await page.route('**/export/v0.7.png', (route) => route.fulfill({ status: 404, body: '' }));
+  await page.route('**/export/v0.7.zip', (route) => route.fulfill({ status: 200, contentType: 'application/zip', body: 'PK' }));
+  const download = page.waitForEvent('download');
+  await page.locator('#pngBtn').click();
+  expect((await download).suggestedFilename()).toBe('【QA】資深遊戲測試工程師_v0.7_圖片.zip');
+  await expect(menu).toBeHidden();
+  await page.locator('#versionButton').click();
+  await page.locator('#versionMenu .version-item', { hasText: /^v0\.5/ }).click();
+  await expect(page.locator('#docxBtn')).toHaveAttribute('href', 'export/v0.5.docx');
+  await page.locator('#versionButton').click();
+  await page.locator('#versionMenu .version-item', { hasText: /^v0\.7/ }).click();
+  await startRevision(page);
+  await expect(page.locator('#downloadBtn')).toBeDisabled();
+  await expect(page.locator('#docxBtn')).toHaveClass(/disabled/);
+});
+
+test('phone: the download menu stays on screen', async ({ browser }, testInfo) => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, baseURL: testInfo.project.use.baseURL });
+  const page = await context.newPage();
+  await openDoc(page);
+  await page.locator('#downloadBtn').click();
+  const box = await page.locator('#downloadMenu').boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(8);
+  expect(box.x + box.width).toBeLessThanOrEqual(375 - 8);
+  await context.close();
 });
 
 test('複製公開網址 copies the page URL without the edit token', async ({ page, context, browserName }) => {

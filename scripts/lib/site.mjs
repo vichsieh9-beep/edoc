@@ -11,6 +11,8 @@ import { displayDate } from '../../src/engine/date.js';
 import { ENGINE_VERSION } from '../../src/engine/meta.js';
 import { versionOrder } from '../../src/engine/version.js';
 import { rowsHtml } from '../../src/library/rows.js';
+import { documentTypographyCss, fontStylesheet, fontsUsedIn } from '../../src/engine/typography.js';
+import { buildFonts } from './fonts.mjs';
 
 export const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -81,7 +83,8 @@ export function renderDocument(doc, { templates, script, slug, config = {} }) {
     title: escapeHtml(title),
     latestVersion: escapeHtml(latestVersion),
     engineVersion: ENGINE_VERSION,
-    style: templates.style,
+    fontLinks: fontsUsedIn(Object.values(versions).map((v) => v.html)).map((f) => `<link rel="stylesheet" href="${fontStylesheet(f)}" data-font="${f.id}">`).join('\n'),
+    style: templates.style + documentTypographyCss('.doc') + '\n',
     // pdfVersions: every formal version gets a PDF when the site is deployed (npm run pdf).
     documentMeta: embedJson({ title, slug, publishApi: config.publishApi || '', pdfVersions: versionOrder(versions) }),
     versionData: embedJson(versions),
@@ -159,6 +162,7 @@ export async function buildSite() {
   ]);
   outputs.push(['index.html', renderLibrary(entries, { templates, script: libraryScript, config })]);
   const changed = [];
+  if ((await buildFonts()).changed) changed.push('fonts/fonts.css');
   for (const [rel, html] of outputs) {
     const file = join(ROOT, rel);
     const current = existsSync(file) ? await readFile(file, 'utf8') : null;

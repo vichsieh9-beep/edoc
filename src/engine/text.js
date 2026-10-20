@@ -1,13 +1,15 @@
 // Clipboard copies of a clean version: rich HTML without EDoc markup, and plain text with bullets.
 import { unwrapElement } from './dom.js';
 
+// The html is already sanitized, so a style attribute is EDoc's own canonical formatting
+// (colour, highlight, font, size, alignment) and is kept for Word / Google Docs.
 export function clipboardHtml(html) {
   const t = document.createElement('template');
   t.innerHTML = html;
   t.content.querySelectorAll('*').forEach((el) => {
-    for (const a of [...el.attributes]) if (!['href', 'src', 'alt'].includes(a.name)) el.removeAttribute(a.name);
+    for (const a of [...el.attributes]) if (!['href', 'src', 'alt', 'style'].includes(a.name)) el.removeAttribute(a.name);
   });
-  t.content.querySelectorAll('span').forEach(unwrapElement);
+  t.content.querySelectorAll('span:not([style])').forEach(unwrapElement);
   return t.innerHTML;
 }
 

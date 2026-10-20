@@ -8,6 +8,7 @@ import { clearDraftDeletions, draftInputRange, restoreDraftSelection } from './d
 import {clearRevisionNavigation} from './revision-navigation.js';
 
 const OBSERVER_OPTIONS={childList:true,subtree:true,characterData:true};
+const INLINE_TAGS=new Set(['B','STRONG','I','EM','U','S','STRIKE','SUP','SUB','SPAN','FONT','A','BR']);
 
 const observer = new MutationObserver(mutations=>{
   if(state.suppressObserver || !state.activeRevision) return;
@@ -24,7 +25,8 @@ const observer = new MutationObserver(mutations=>{
       }
     });
     m.addedNodes.forEach(n=>{
-      if(n.nodeType===1){
+      // Formatting wraps text in inline elements; only blocks carry the live change bar.
+      if(n.nodeType===1 && !INLINE_TAGS.has(n.tagName)){
         const node=n;
         if(!node.dataset.edocBlock && node.matches && node.matches(BLOCK_SELECTOR)) node.dataset.edocBlock=allocateNewBlockId();
         if(!node.classList.contains('deletion-record')) node.classList.add('revision-changed');
@@ -86,6 +88,14 @@ function markChangedFromEvent() {
   }
   preInputBlockId=null;
   state.activeRevision.html=draftSurfaceHtml();
+}
+// Before a toolbar command: the same preparation as a keystroke (comparison fragments
+// removed, the selection kept on the original text), so the native command and its undo
+// entry act on editable content only.
+export function prepareForCommand() {
+  if(!state.activeRevision) return;
+  withObserverPaused(()=>clearDraftDeletions(el.doc,{preserveBlocks:state.composing}));
+  el.doc.dispatchEvent(new Event('edoc-markup-invalidated'));
 }
 export function initDocSurface() {
   // Keyboard, paste/cut and composition happen before beforeinput target ranges

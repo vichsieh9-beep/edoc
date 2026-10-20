@@ -164,7 +164,9 @@ export async function finishRevision() {
   };
   setBusy(true);
   try {
-    await api('/versions', { token: state.session.token, doc: state.meta.slug, baseVersion: base, versionKey: key, version });
+    const stored = await api('/versions', { token: state.session.token, doc: state.meta.slug, baseVersion: base, versionKey: key, version });
+    // The Worker stores the html through the same content model; show exactly what was stored.
+    if (typeof stored?.html === 'string') version.html = stored.html;
   } catch (e) {
     setBusy(false);
     return publishFailed(e, r);

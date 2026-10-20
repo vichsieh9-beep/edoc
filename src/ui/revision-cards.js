@@ -1,6 +1,7 @@
 // Paragraph review cards follow the same aligned diff as the document body.
 import {sectionNameFor} from '../engine/diff.js';
 import {inertContainer,cleanSnapshot,BLOCK_SELECTOR,ownedTextNodes,ownText} from '../engine/dom.js';
+import {describeFormat} from '../engine/content-model.js';
 
 export function comparisonText(html){
   const root=inertContainer(html),text=root.textContent.trim();
@@ -33,13 +34,19 @@ export function revisionCards(root,baseHtml){
       const text=node.tagName==='HR'?'分隔線':comparisonText(media.outerHTML);
       if(deleted)beforeText=text;else if(added)afterText=text;else continue;
     }
-    if(!deleted&&!added&&!beforePieces.concat(afterPieces).some(p=>p.kind!=='plain'))continue;
-    const type=deleted?'deleted':added?'added':'modified';
+    // Format changes of this block: its own (alignment, heading level, list) and of its text.
+    const formatMarks=[...node.querySelectorAll('span.format-changed')].filter(x=>x.closest(BLOCK_SELECTOR+',hr')===node);
+    const notes=[node.classList.contains('format-changed')?node.getAttribute('data-edoc-fmt'):'',...formatMarks.map(x=>x.getAttribute('data-edoc-fmt'))].filter(Boolean);
+    const textChanged=beforePieces.concat(afterPieces).some(p=>p.kind!=='plain');
+    if(!deleted&&!added&&!textChanged&&!notes.length)continue;
+    const type=deleted?'deleted':added?'added':textChanged?'modified':'format';
+    const formats=!deleted&&!added&&notes.length?describeFormat(notes.join(' ')):'';
+    const formatText=formatMarks.map(x=>x.textContent.trim()).filter(Boolean).join('、')||afterText;
     // A formatting-only diff marks new styled text without deleting its words.
     if(type==='modified'&&!beforeText&&baseTexts.some(t=>t.trim()===afterText)){
       beforeText=afterText;beforePieces.push({kind:'plain',text:beforeText});
     }
-    items.push({node,type,section:sectionNameFor(node,root),beforeText,afterText,beforePieces,afterPieces,sameText:type==='modified'&&beforeText===afterText});
+    items.push({node,type,section:sectionNameFor(node,root),beforeText,afterText,beforePieces,afterPieces,sameText:type==='modified'&&beforeText===afterText,formats,formatText});
   }
   return items;
 }

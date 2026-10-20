@@ -15,6 +15,16 @@ test('generates an A4 PDF for the requested version', async ({}, testInfo) => {
   // A4 is 595.28 × 841.89 pt; Chromium rounds it through inches (595.92 × 842.88).
   expect(Math.abs(parseFloat(box[1]) - 595.28)).toBeLessThan(2);
   expect(Math.abs(parseFloat(box[2]) - 841.89)).toBeLessThan(2);
+  // The content is set in the site's own font (the same as on screen), embedded in the file.
+  expect(text).toMatch(/FontName\s*\/[A-Z]{6}\+NotoSansTC/);
+});
+
+test('the PDF uses the shared type scale and the bundled fonts', () => {
+  const html = pdfHtml({ version: 'v1.0', html: '<h1>標題</h1>', hash: 'b'.repeat(64), url: 'https://example.test/' });
+  expect(html).toContain("body{font-family:'Noto Sans TC',sans-serif;font-size:12pt}");
+  expect(html).toContain('body h1{font-size:20pt}');
+  expect(html).toContain('body h2{font-size:15pt}');
+  expect(html).toContain('/fonts.css">');
 });
 
 test('verification block lists version, time, editor, full hash and public URL', () => {

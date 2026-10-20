@@ -3,6 +3,7 @@ import {capability} from './access.js';
 import { el } from './elements.js';
 import { state } from './state.js';
 import { updatePdfLink } from './share.js';
+import { renderToolbar } from './toolbar.js';
 
 export function renderEditBar() {
   const s = state.session, drafting = !!state.activeRevision;
@@ -26,4 +27,5 @@ export function renderEditBar() {
     el.discardRevisionBtn.hidden = !drafting;
   }
   updatePdfLink();
+  renderToolbar();
 }

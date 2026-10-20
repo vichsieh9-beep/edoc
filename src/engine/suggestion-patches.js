@@ -1,22 +1,19 @@
-import { inertContainer, BLOCK_SELECTOR } from './dom.js';
+import { inertContainer, BLOCK_SELECTOR, sortAttributes } from './dom.js';
 import { normalizeSnapshot, sectionNameFor } from './diff.js';
 import { sanitizeRevisionHtml } from './revision.js';
 
 export function prepareSuggestionContent(html,context){
  if(typeof html!=='string'||html.length>1_000_000) throw new Error('修改內容格式或大小不符');
  const root=inertContainer(sanitizeRevisionHtml(html,context),context);
- root.querySelectorAll('[class],[data-edoc-block],[contenteditable]').forEach(n=>{
-  n.removeAttribute('class'); n.removeAttribute('data-edoc-block'); n.removeAttribute('contenteditable');
+ root.querySelectorAll('[class],[data-edoc-block],[data-edoc-fmt],[contenteditable]').forEach(n=>{
+  n.removeAttribute('class'); n.removeAttribute('data-edoc-block'); n.removeAttribute('data-edoc-fmt'); n.removeAttribute('contenteditable');
  });
  // Both DOMs use the same explicit table shell and attribute order.
  root.querySelectorAll('table').forEach(t=>{
   const rows=[...t.children].filter(x=>x.tagName==='TR');
   if(rows.length){ const body=root.ownerDocument.createElement('tbody');rows[0].before(body);body.append(...rows); }
  });
- root.querySelectorAll('*').forEach(n=>{
-  const attrs=[...n.attributes].map(a=>[a.name,a.value]).sort(([a],[b])=>a.localeCompare(b));
-  attrs.forEach(([a])=>n.removeAttribute(a));attrs.forEach(([a,b])=>n.setAttribute(a,b));
- });
+ root.querySelectorAll('*').forEach(sortAttributes);
  const out=normalizeSnapshot(root.innerHTML,context); return out.innerHTML;
 }
 const at=(root,path)=>path.reduce((n,i)=>n?.childNodes[i],root);

@@ -6,6 +6,8 @@ _site/
 /index.html
 /documents/*/index.html
 /documents/*/pdf/
+/documents/*/export/
+/fonts/
 .DS_Store
 
 # Proposal pages for V (local only, never published)

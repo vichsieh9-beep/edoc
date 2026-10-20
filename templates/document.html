@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{title}} — EDoc {{latestVersion}}</title>
+{{fontLinks}}
 <style>
 {{style}}</style>
 </head>
@@ -34,9 +35,18 @@
     <div class="group share-group">
       <button id="shareUrlBtn" disabled>複製公開網址</button>
       <button id="copyBtn">複製全文</button>
-      <a id="pdfBtn" class="button" href="#" download>下載 PDF</a>
+      <div class="download-control" id="downloadControl">
+        <button id="downloadBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="downloadMenu">下載 <span class="caret">▼</span></button>
+        <div class="download-menu" id="downloadMenu" role="menu" hidden>
+          <a id="pdfBtn" class="download-item" role="menuitem" href="#" download><b>PDF<span class="official">正式版</span></b><span>A4，含 SHA-256 驗證資訊；交付、列印用這個</span></a>
+          <a id="docxBtn" class="download-item" role="menuitem" href="#" download><b>Word（.docx）</b><span>要繼續編輯時用；Mac 的 Pages、Google 文件也能開</span></a>
+          <a id="pngBtn" class="download-item" role="menuitem" href="#" download><b>圖片（PNG）</b><span>每頁一張，跟 PDF 版面相同；傳 LINE、貼簡報用</span></a>
+          <p class="download-note" id="downloadNote">下載的都是目前選的版本。Word、圖片是方便用的副本，正式版以 PDF 為準。</p>
+        </div>
+      </div>
     </div>
   </div>
+  <div class="fmt-bar" id="formatBar" role="toolbar" aria-label="文字格式" hidden></div>
 </header>
 
 <main class="wrap">
@@ -77,8 +87,8 @@
   </div>
 
   <div class="legend">
-    <span class="dot blue"></span>藍色底線＝新增或格式變更
-    <span class="dot red"></span>頁邊紅線＝有修訂；所有標記以紅字刪除線顯示刪除內容，右側保留修訂對照
+    <span class="dot blue"></span>藍字雙底線＝新增；藍色虛線底線＝只改了格式
+    <span class="dot red"></span>頁邊紅線＝有修訂；所有標記以紅字粗刪除線顯示刪除內容，右側保留修訂對照
     <div class="hint">正式版本永久唯讀。有編輯權限的人按「開始修訂」即可直接修改；按「完成修訂-版本更新」後，系統會自動比對、產生變更統計並發布新版本；變更說明由 Codex 協助補寫。</div>
   </div>
   <footer class="engine-foot">EDoc {{engineVersion}}</footer>

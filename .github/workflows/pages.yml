@@ -45,6 +45,10 @@ jobs:
         run: npm ci
       - if: steps.scope.outputs.code == 'true'
         run: npx playwright install --with-deps chromium webkit
+      # Word / PNG copies of each version: PNG pages are rendered from the PDF by poppler.
+      - name: PDF page renderer
+        if: steps.scope.outputs.code == 'true'
+        run: sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Tests (build, Chromium, WebKit)
         if: steps.scope.outputs.code == 'true'
         run: npx playwright test --workers=2
@@ -80,8 +84,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Chinese fonts for the PDFs
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Chinese fonts for the PDFs, poppler for their PNG pages
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk poppler-utils
       - run: npx playwright install --with-deps chromium
       - name: Build site and official PDFs
         run: npm run pdf
@@ -89,10 +93,12 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html .nojekyll _site/
+          cp -R fonts _site/
           for dir in documents/*/; do
             mkdir -p "_site/$dir"
             cp "$dir/index.html" "_site/$dir"
             if [ -d "$dir/pdf" ]; then cp -R "$dir/pdf" "_site/$dir"; fi
+            if [ -d "$dir/export" ]; then cp -R "$dir/export" "_site/$dir"; fi
           done
           find _site -type f | sort
       - name: Setup Pages

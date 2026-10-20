@@ -30,7 +30,7 @@ export async function readVersionFacts(slug, versions) {
   }
 }
 
-const TYPE = { modified: '修改', added: '新增', deleted: '刪除' };
+const TYPE = { modified: '修改', added: '新增', deleted: '刪除', format: '格式變更' };
 
 export function formatPacket(doc, facts) {
   const lines = [
@@ -44,6 +44,8 @@ export function formatPacket(doc, facts) {
     lines.push(`${i + 1}. ${c.section}｜${TYPE[c.type]}`);
     if (c.before !== undefined) lines.push(`   前：${c.before}`);
     if (c.after !== undefined) lines.push(`   後：${c.after}`);
+    if (c.text !== undefined) lines.push(`   文字：${c.text}`);
+    if (c.formats) lines.push(`   格式：${c.formats}`);
   });
   if (!facts.changes.length) lines.push('（沒有內容變更）');
   lines.push(

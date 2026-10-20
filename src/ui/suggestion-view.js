@@ -6,6 +6,8 @@ import {displayDate} from '../engine/date.js';
 import {prepareSuggestionContent} from '../engine/suggestion-patches.js';
 import {BLOCK_SELECTOR} from '../engine/dom.js';
 import {toPlainText} from '../engine/text.js';
+import {buildFormalDiff} from '../engine/diff.js';
+import {describeFormat} from '../engine/content-model.js';
 import {configureRevisionNavigation,selectRevision,orderRevisionEntries} from './revision-navigation.js';
 
 export const decisionLabels={pending:'待討論',adopt:'採納',decline:'不採納'};
@@ -25,6 +27,13 @@ function text(item,key){
  const image=root.querySelector('img');if(image)return '圖片'+(image.alt?'：'+image.alt:'');
  if(root.querySelector('hr'))return '分隔線';
  return root.querySelector('p,div,br')?'空白段落':raw.trim()?'格式或結構內容':'空白文字';
+}
+// Same words, different formatting: name what changed instead of showing two identical lines.
+function formatChange(item){
+ if(!item.before||!item.after||item.before===item.after||text(item,'before')!==text(item,'after'))return '';
+ const root=document.createElement('div');root.innerHTML=buildFormalDiff(item.before,item.after);
+ const notes=[...root.querySelectorAll('[data-edoc-fmt]')].map(n=>n.getAttribute('data-edoc-fmt'));
+ return notes.length?describeFormat(notes.join(' ')):'格式';
 }
 function comparisonText(item,key){return text(item,key).trim()||(item[key]?'空白文字':key==='before'?'無（新增項目）':'無（刪除內容）');}
 export function renderSuggestionView(s,{decide,comment,withdraw,compare,preview,history,close}){
@@ -108,6 +117,7 @@ export function renderSuggestionView(s,{decide,comment,withdraw,compare,preview,
     h('span',{class:'suggestion-context'},i.section||'正文'),h('small',{class:'suggestion-id'},i.id),
     h('p',{class:'suggestion-change'},'修改前：',h('span',{class:'suggestion-before'},comparisonText(i,'before'))),
     h('p',{class:'suggestion-change'},'建議內容：',h('span',{class:'suggestion-after'},comparisonText(i,'after'))),
+    formatChange(i)?h('p',{class:'suggestion-change suggestion-format'},'格式變更：'+formatChange(i)):null,
     h('p',{class:'suggestion-status',role:'status'},decisionDescription(i)),
     h('div',{class:'suggestion-decisions'},buttons),actionable&&i.decision!=='pending'?action('改回待討論',()=>{activate(i.id);decide([i.id],'pending');},{class:'suggestion-reset'}):null);
    const noteDraft=noteState(i.id),noteList=h('div'),noteSummary=h('summary'),feedback=h('p',{class:'note-feedback',role:'status'});

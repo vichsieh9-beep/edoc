@@ -8,6 +8,21 @@
 
 ---
 
+## 2026-10-20 Word 基本文書功能第一期（Engine R2.16，Vic 確認頁 8 項全部通過）
+
+- 修訂中才出現的格式工具列（`src/ui/toolbar.js`）：復原／重做、段落樣式（內文／標題 1–3，新增 h3）、字型 5 款、字級 7 級、粗體／斜體／底線／刪除線、文字色彩、螢光筆、清除格式、四種對齊、項目符號／編號、清單內 Tab／⇧Tab 縮排、連結（⌘K）。桌面在標頭第三列，手機在畫面底部＋「Aa」面板。全部用瀏覽器原生編輯指令（保留原生復原），指令前先清掉比較片段。
+- 格式資料模型（`src/engine/content-model.js`）：語意標籤（strong/b、em/i、u、s、sup、sub）＋只在 span 上的受限樣式（色盤色、螢光色、5 款字型、7 級 pt 字級）與段落的 text-align。值只能來自封閉清單、由清單重寫輸出，`url()`、`!important`、定位等一律擋下；class 只留修訂標記。網頁與 Worker（linkedom）共用同一支，輸出逐位元相同（linkedom 會把新增屬性排在前面，引擎寫多個屬性時一律用 `sortAttributes`）。
+- 格式感知 diff：base 與草稿先過同一套清洗（修掉 ⌘U 底線存進去後下一版仍是藍的 bug）；字相同時再比格式，只把格式不同的字包 `span.format-changed[data-edoc-fmt]`；對齊、段落樣式、清單類型與縮排在段落本身標 `format-changed`，標題↔段落可配對，不再顯示成刪一段＋加一段。統計多「N 處格式變更」，只改格式也能發布。既有版本的雜湊、golden 輸出與 19 個既有版本的 clean／顯示／trusted 內容全部不變（`tests/stored-content.spec.js` 鎖住）。
+- 修訂標記：新增＝藍字雙底線、刪除＝紅字粗刪除線、只改格式＝原色＋藍色虛線底線。
+- 字型：網站自帶 @fontsource 開源字型（OFL，版本鎖定）：思源黑體（文件預設）、思源宋體、霞鶩文楷、Arimo、Tinos。`npm run build` 產生 `fonts/`（不進版控，CI 組站時複製），依字切片、頁面只下載用到的字；文件頁以 `../../fonts/fonts.css` 載入。這是「單一自足 HTML」規則的唯一例外（Vic 2026-10-19 同意）。
+- 共用字級表（`src/engine/typography.js`）：內文 12pt、標題 1／2／3＝20／15／13pt，螢幕與 PDF 相同；`.doc` 左右邊界 20mm＝PDF，換行位置一致。所有歷史版本 PDF 下次部署時改用新排版（內容與雜湊不變，Vic 同意）。PDF 內文用同一套字型（測試檢查內嵌 NotoSansTC）。
+- 貼上（`normalizePastedHtml`）：Word／Google 文件的粗斜底刪、色盤色、字級、對齊保留，常見字型對應（Arial→Arimo、Times New Roman→Tinos、新細明體→思源宋體、標楷體→霞鶩文楷），其餘丟掉；從 EDoc 本身複製的修訂標記與刪除文字不帶入。⌘⇧V 貼成純文字。複製全文保留格式。
+- Worker：舊發布路徑與新增文件在存檔前跑同一支清洗並回傳實際存入的 html，網頁直接採用。部署順序照舊：先 Worker 再 Pages。
+- 輸出格式（Vic v02 確認頁 E1–E3 通過）：標頭「下載 PDF」改為「下載 ▾」選單＝PDF（正式版）／Word（.docx）／圖片（PNG）。部署時 `npm run pdf` 每版同時產生 `documents/<slug>/export/<v>.docx` 與 PNG（從正式 PDF 以 poppler `pdftoppm` 150 dpi 逐頁轉出；一頁＝`<v>.png`，多頁＝`<v>.zip`，網頁先 HEAD `.png` 再退 `.zip`）。Word 由 `scripts/lib/docx-export.mjs` 自己寫 OOXML（`scripts/lib/zip.mjs`，固定時間戳、同內容同位元組）：乾淨正文不含修訂標記、標題 1–3、清單編號、對齊、粗斜底刪上下標、色彩、螢光、字型、字級、連結、表格；頁尾「版本｜SHA-256 前後 8 碼｜正式版以 PDF 為準」；fontTable 註明每款字型類型與常見替代字型。CI 兩個 job 都安裝 poppler-utils，組站複製 `export/`。改過的 Word 檔只能用文件庫「上傳 Word」建立新文件。Word 換行、分頁由 Word 自己排；對方沒裝思源字型時換字（macOS Quick Look 實測換成襯線字；Microsoft Word 未實測）。
+- 未做（移第二期）：行距、首行縮排、完整字級清單——需要 EDoc 自管復原（S2），本期不做；WebKit（Safari）原生復原會把「打字＋緊接的格式指令」合成一步，這是瀏覽器行為。刪除文字保留原格式也未做（只影響刪除線文字是否顯示粗體，避免改動既有 golden 輸出）。
+
+---
+
 ## 2026-10-19 新增文件可上傳 PDF（Engine R2.15，Vic 拍板 P1）
 
 - 文件庫「新增文件」的「上傳 Word」改為「上傳 Word／PDF」一個分頁：拖進 .docx 或 .pdf，依副檔名自動轉換，先顯示轉換結果與預覽，按「建立文件」才成為 v0.1。v0.1 記錄「建立方式：上傳 PDF（檔名）」。

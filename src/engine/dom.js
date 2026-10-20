@@ -1,5 +1,5 @@
 // Document content model shared by the engine and the editor.
-export const BLOCK_SELECTOR='h1,h2,p,li,td,th,blockquote';
+export const BLOCK_SELECTOR='h1,h2,h3,p,li,td,th,blockquote';
 
 // Stored versions can come from any edit-link holder, so html is always parsed in an inert
 // document: images do not load, scripts do not run and event handlers never fire.
@@ -15,8 +15,9 @@ export function inertContainer(html, context) {
 export function cleanSnapshot(html, context) {
   const tmp = inertContainer(html, context);
   tmp.querySelectorAll('.deleted,.deletion-record').forEach(x=>x.remove());
-  tmp.querySelectorAll('.changed,.revision-changed').forEach(x=>{x.classList.remove('changed','revision-changed'); if(!x.className)x.removeAttribute('class');});
+  tmp.querySelectorAll('.changed,.revision-changed,.format-changed').forEach(x=>{x.classList.remove('changed','revision-changed','format-changed'); if(!x.className)x.removeAttribute('class');});
   tmp.querySelectorAll('[data-edoc-block]').forEach(x=>x.removeAttribute('data-edoc-block'));
+  tmp.querySelectorAll('[data-edoc-fmt]').forEach(x=>x.removeAttribute('data-edoc-fmt'));
   return tmp.innerHTML;
 }
 export function annotateBaseBlocks(root) {
@@ -24,6 +25,18 @@ export function annotateBaseBlocks(root) {
   root.querySelectorAll(BLOCK_SELECTOR).forEach(el=>{ el.dataset.edocBlock='b'+(i++); });
 }
 export function unwrapElement(el){ el.replaceWith(...el.childNodes); }
+// The Worker's DOM (linkedom) serializes a newly added attribute first, browsers last.
+// Elements the engine writes several attributes on get the same sorted order on both.
+const prepending=new WeakMap();
+function prependsAttributes(doc){
+  if(!prepending.has(doc)){ const t=doc.createElement('i'); t.setAttribute('a',''); t.setAttribute('b',''); prepending.set(doc,t.attributes[0].name==='b'); }
+  return prepending.get(doc);
+}
+export function sortAttributes(el){
+  const attrs=[...el.attributes].map(a=>[a.name,a.value]).sort(([a],[b])=>a.localeCompare(b));
+  attrs.forEach(([a])=>el.removeAttribute(a));
+  (prependsAttributes(el.ownerDocument)?attrs.reverse():attrs).forEach(([a,b])=>el.setAttribute(a,b));
+}
 export function normalizeWs(t){ return t.replace(/\s+/g,' ').trim(); }
 // Text nodes whose nearest block is `block` itself (nested blocks own their own text).
 export function ownedTextNodes(block) {

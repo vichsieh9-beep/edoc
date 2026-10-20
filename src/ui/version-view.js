@@ -18,7 +18,7 @@ function aiChip() {
 // Keep metadata available internally; the card presents only totals and meaning.
 function renderAiSummary(data) {
   const stats=analyzeFormalDiff(data.html);
-  el.cardSummary.textContent=`統計：${stats.modifiedBlocks} 處修改、${stats.addedBlocks} 處新增、${stats.deletedBlocks} 處刪除。`;
+  el.cardSummary.textContent=`統計：${stats.modifiedBlocks} 處修改、${stats.addedBlocks} 處新增、${stats.deletedBlocks} 處刪除${stats.formattedBlocks?`、${stats.formattedBlocks} 處格式變更`:''}。`;
   const ai=usableAiSummary(data);
   el.cardMeaning.textContent=ai?.summary || (data.previous ? '變更說明尚未補寫' : data.summary);
 }

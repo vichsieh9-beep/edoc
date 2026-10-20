@@ -17,8 +17,10 @@ Editing always occurs in Draft / Revision.
 
 Since 2026-09-24 (engine R2.7) editing happens on the public page: holders of an edit link
 (`#edit=<token>`, name bound to the link) publish new versions through the Worker in `worker/`;
-the plain URL is read-only. There is no offline editing, export or import any more; the
-official output is the system-generated A4 PDF of each version.
+the plain URL is read-only. There is no offline editing; besides the official, system-generated
+A4 PDF of each version, the site also generates a Word (.docx) copy and the PDF's pages as PNG
+(one page: .png, several: .zip) for download (R2.16, Vic 2026-10-20). The official version is
+still the PDF; an edited Word copy comes back only as a new document (Library › 上傳 Word).
 
 Since 2026-09-29 (engine R2.8) the site is a library of documents. Vic's admin link
 (`<site>/#edit=<token>`, role `admin`) manages it from the Library page: create a document
@@ -92,9 +94,15 @@ card references follow RULES.md §4.2. The board is a progress log, not the SSOT
 ## Source layout
 
 Edit `src/`, `templates/` or `documents/<slug>/document.json`, then run `npm run build`.
-`documents/*/index.html`, `index.html` and `documents/*/pdf/` are build output: not committed,
+`documents/*/index.html`, `index.html`, `documents/*/pdf/`, `documents/*/export/` and `fonts/` are build output: not committed,
 never edited by hand; CI builds them (and the PDFs) before every deploy. The build must keep
-producing one self-contained HTML per document.
+producing one self-contained HTML per document; the only exception is the bundled document fonts
+(`fonts/`, OFL, from @fontsource), which the pages and the PDFs load from the site (Vic, 2026-10-19).
+
+Since 2026-10-20 (engine R2.16) a Draft has a formatting toolbar. What a version may store is the
+content model in `src/engine/content-model.js` (closed lists of colours, fonts and sizes; anything
+else is dropped); the formal diff marks formatting-only changes as `format-changed`, never as
+deleted plus added text.
 
 Versions published from the web page are committed straight to `document.json` on GitHub by
 the Worker, so always `git pull` before changing anything locally (`changelog` and `edit-link`

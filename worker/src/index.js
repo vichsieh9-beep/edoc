@@ -16,7 +16,7 @@
 import { nextVersion } from '../../src/engine/version.js';
 import { HttpError } from './errors.js';
 import { github } from './github.js';
-import { publishLegacy as publish } from './legacy-versions.js';
+import { publishLegacy as publish, storedHtml } from './legacy-versions.js';
 export { validateVersion } from './legacy-versions.js';
 export { CollaborationHub } from './collaboration/hub.js';
 
@@ -200,7 +200,7 @@ async function createDocument({ body, link, gh, now, random }) {
         summary: `建立文件：${how}`,
         details: [`建立方式：${how}`, EDITOR + link.name, CREATED + now.toISOString()],
         previous: null,
-        html: body.html,
+        html: storedHtml(body.html),
         uiChanges: [],
         aiSummary: null,
       },

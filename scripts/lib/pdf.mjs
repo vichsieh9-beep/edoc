@@ -3,12 +3,22 @@
 // Archived documents get none: their public page no longer shows the content.
 import { displayDateTime } from '../../src/engine/date.js';
 import { chromium } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { ROOT, loadConfig, loadDocuments } from './site.mjs';
+import { buildFonts } from './fonts.mjs';
+import { docxFromHtml } from './docx-export.mjs';
+import { zip } from './zip.mjs';
+import { documentTypographyCss } from '../../src/engine/typography.js';
 
+// Header and footer templates cannot load web fonts: they use the system's Noto CJK.
 const FONT = `-apple-system,'PingFang TC','Noto Sans TC','Noto Sans CJK TC','Microsoft JhengHei',sans-serif`;
+// The page content uses the site's own font files (the same as on screen), served from disk.
+const FONT_ORIGIN = 'https://edoc-fonts.invalid';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const detail = (details, prefix) => {
   const line = details.find((d) => d.startsWith(prefix));
@@ -23,10 +33,11 @@ export function pdfHtml({ version, html, hash, url, created, editor }) {
     created && `建立時間：${esc(taipeiTime(created))}`,
     editor && `編輯者：${esc(editor)}`,
   ].filter(Boolean).join('　');
-  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><style>
-body{font-family:${FONT};color:#111;font-size:10.5pt;line-height:1.75;margin:0}
-h1{font-size:17pt;line-height:1.35;margin:0 0 14pt}
-h2{font-size:12.5pt;margin:16pt 0 6pt;break-after:avoid}
+  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><link rel="stylesheet" href="${FONT_ORIGIN}/fonts.css"><style>
+body{color:#111;line-height:1.75;margin:0}
+${documentTypographyCss('body')}
+h1{line-height:1.35;margin:0 0 14pt}
+h2{margin:16pt 0 6pt;break-after:avoid} h3{break-after:avoid}
 ul{padding-left:17pt;margin:4pt 0} li{margin:2.5pt 0;break-inside:avoid} ul ul{margin-top:2pt}
 hr{border:none;border-top:0.6pt solid #bbb;margin:12pt 0}
 table{border-collapse:collapse} td,th{border:0.6pt solid #999;padding:3pt 5pt}
@@ -42,8 +53,35 @@ table{border-collapse:collapse} td,th{border:0.6pt solid #999;padding:3pt 5pt}
 </body></html>`;
 }
 
-export async function generatePdfs({ outDir, versions: only } = {}) {
-  const [config, entries] = await Promise.all([loadConfig(), loadDocuments()]);
+// Convenience copies next to the official PDF (R2.16): Word, and the PDF's pages as PNG
+// (one page → <v>.png, several → <v>.zip). PNG needs poppler's pdftoppm.
+async function writeExports({ dir, pdf, title, version, html, hash, created }) {
+  await mkdir(dir, { recursive: true });
+  const written = [join(dir, `${version}.docx`)];
+  await writeFile(written[0], docxFromHtml({ html, title, version, hash, created }));
+  const tmp = await mkdtemp(join(tmpdir(), 'edoc-png-'));
+  try {
+    execFileSync('pdftoppm', ['-r', '150', '-png', pdf, join(tmp, 'p')], { stdio: 'ignore' });
+    const pages = (await readdir(tmp)).filter((f) => f.endsWith('.png')).sort();
+    await rm(join(dir, `${version}.png`), { force: true });
+    await rm(join(dir, `${version}.zip`), { force: true });
+    if (pages.length === 1) {
+      written.push(join(dir, `${version}.png`));
+      await writeFile(written[1], await readFile(join(tmp, pages[0])));
+    } else {
+      written.push(join(dir, `${version}.zip`));
+      const files = [];
+      for (const [i, f] of pages.entries()) files.push({ name: `${title}_${version}_第${i + 1}頁.png`, data: await readFile(join(tmp, f)), store: true });
+      await writeFile(written[1], zip(files));
+    }
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+  return written;
+}
+
+export async function generatePdfs({ outDir, versions: only, exports = true } = {}) {
+  const [config, entries] = await Promise.all([loadConfig(), loadDocuments(), buildFonts()]);
   const written = [];
   const browser = await chromium.launch();
   try {
@@ -64,8 +102,16 @@ export async function generatePdfs({ outDir, versions: only } = {}) {
 
       // Content is rendered with JavaScript disabled.
       const context = await browser.newContext({ javaScriptEnabled: false });
+      await context.route(FONT_ORIGIN + '/**', async (route) => {
+        const name = new URL(route.request().url()).pathname.slice(1);
+        if (!/^[\w.-]+\.(css|woff2)$/.test(name)) return route.abort();
+        const body = await readFile(join(ROOT, 'fonts', name)).catch(() => null);
+        if (!body) return route.abort();
+        await route.fulfill({ body, contentType: name.endsWith('.css') ? 'text/css' : 'font/woff2' });
+      });
       const pdfPage = await context.newPage();
       const dir = outDir ? join(outDir, slug) : join(ROOT, 'documents', slug, 'pdf');
+      const exportDir = outDir ? join(outDir, slug, 'export') : join(ROOT, 'documents', slug, 'export');
       await mkdir(dir, { recursive: true });
       const url = new URL(`documents/${slug}/`, config.siteUrl).href;
       const small = `font-family:${FONT};font-size:7.5pt;color:#777;width:100%;margin:0 20mm;display:flex;justify-content:space-between`;
@@ -73,7 +119,7 @@ export async function generatePdfs({ outDir, versions: only } = {}) {
         await pdfPage.setContent(pdfHtml({
           version: v.version, html: v.html, hash: v.hash, url,
           created: detail(v.details, '建立時間：'), editor: detail(v.details, '編輯者：'),
-        }), { waitUntil: 'load' });
+        }), { waitUntil: 'networkidle' });
         const path = join(dir, `${v.version}.pdf`);
         await pdfPage.pdf({
           path, format: 'A4', printBackground: true,
@@ -83,6 +129,7 @@ export async function generatePdfs({ outDir, versions: only } = {}) {
           footerTemplate: `<div style="${small}"><span>SHA-256 ${v.hash.slice(0, 8)}…${v.hash.slice(-8)} · ${esc(new URL(config.siteUrl).host)}</span><span>第 <span class="pageNumber"></span>／<span class="totalPages"></span> 頁</span></div>`,
         });
         written.push(path);
+        if (exports) await writeExports({ dir: exportDir, pdf: path, title: doc.title, version: v.version, html: v.html, hash: v.hash, created: detail(v.details, '建立時間：') });
       }
       await context.close();
     }

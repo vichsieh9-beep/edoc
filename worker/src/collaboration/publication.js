@@ -50,7 +50,7 @@ export async function advancePublication(store,gh,id,doc,now){
   if(p.attempts>=3)return saveFailure(store,p,now);
   p={...p,attempts:p.attempts+1};store.put('publications',id,doc,p);
   const stats=p.stats;
-  const version=validateVersion({summary:`統計：${stats.modifiedBlocks} 處修改、${stats.addedBlocks} 處新增、${stats.deletedBlocks} 處刪除`,details:[...stats.details.filter(x=>!x.startsWith('語意摘要：')).slice(0,38),'建立時間：'+p.acceptedAt],previous:p.baseVersion,html:p.formalHtml,publicationId:id,contentHash:p.contentHash},{previous:p.baseVersion,editor:p.actorSnapshot.name,now:new Date(p.acceptedAt),publication:true});
+  const version=validateVersion({summary:`統計：${stats.modifiedBlocks} 處修改、${stats.addedBlocks} 處新增、${stats.deletedBlocks} 處刪除${stats.formattedBlocks?`、${stats.formattedBlocks} 處格式變更`:''}`,details:[...stats.details.filter(x=>!x.startsWith('語意摘要：')).slice(0,38),'建立時間：'+p.acceptedAt],previous:p.baseVersion,html:p.formalHtml,publicationId:id,contentHash:p.contentHash},{previous:p.baseVersion,editor:p.actorSnapshot.name,now:new Date(p.acceptedAt),publication:true});
   const next={...document,latestVersion:p.versionKey,versions:{...document.versions,[p.versionKey]:version}};
   const commit=await gh.writeJson(`documents/${doc}/document.json`,next,sha,`Publish ${p.versionKey} via EDoc (${id})`,'正式文件已更新，請重新比較');
   return finishSaved(store,p,p.versionKey,commit,now);

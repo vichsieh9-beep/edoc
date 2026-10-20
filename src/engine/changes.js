@@ -2,6 +2,7 @@
 // This is what an AI reads to write the semantic summary.
 import { BLOCK_SELECTOR, ownedTextNodes, normalizeWs, inertContainer } from './dom.js';
 import { sectionNameFor } from './diff.js';
+import { describeFormat } from './content-model.js';
 
 export function listChanges(formalHtml) {
   const wrap=inertContainer(formalHtml);
@@ -21,7 +22,12 @@ export function listChanges(formalHtml) {
       if(!mark || mark.classList.contains('deleted')) before+=n.textContent;
       if(!mark || mark.classList.contains('changed')) after+=n.textContent;
     }
-    if(touched) out.push({section,type:'modified',before:normalizeWs(before),after:normalizeWs(after)});
+    // Formatting changes: the block's own (alignment, heading level, list) and its text's.
+    const notes=[block.classList.contains('format-changed')?block.getAttribute('data-edoc-fmt'):'',
+      ...[...block.querySelectorAll('.format-changed')].filter(x=>x.closest(BLOCK_SELECTOR)===block).map(x=>x.getAttribute('data-edoc-fmt'))].filter(Boolean);
+    const formats=notes.length?describeFormat(notes.join(' ')):'';
+    if(touched) out.push({section,type:'modified',before:normalizeWs(before),after:normalizeWs(after),...(formats?{formats}:{})});
+    else if(formats) out.push({section,type:'format',text:normalizeWs(after),formats});
   });
   return out;
 }

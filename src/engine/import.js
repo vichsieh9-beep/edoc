@@ -68,8 +68,11 @@ function wordLists(root) {
   }
 }
 
+// EDoc's own revision colours: text copied from a version view carries them as inline styles.
+const MARK_COLOR = /(?:^|;)\s*color:\s*(?:#1d4ed8|#b91c1c|rgb\(\s*29,\s*78,\s*216\s*\)|rgb\(\s*185,\s*28,\s*28\s*\))/i;
 // Google Docs and Word express bold/italic with inline styles; turn those into tags before styles go.
-function styleToTags(root) {
+// With `decorations`, underline, strikethrough and super/subscript become tags too.
+function styleToTags(root, { decorations = false } = {}) {
   for (const el of [...root.querySelectorAll('[style]')]) {
     const style = el.getAttribute('style');
     const weight = (style.match(/font-weight:\s*(\w+)/i) || [])[1];
@@ -78,6 +81,25 @@ function styleToTags(root) {
     if (el.tagName === 'B' && normal) { el.replaceWith(...el.childNodes); continue; }
     if (bold && !/^(B|STRONG|H\d|TH)$/.test(el.tagName)) wrapChildren(el, 'strong');
     if (/font-style:\s*italic/i.test(style) && !/^(I|EM)$/.test(el.tagName)) wrapChildren(el, 'em');
+    if (!decorations || MARK_COLOR.test(style)) continue;
+    const line = (style.match(/text-decoration(?:-line)?:\s*([^;]+)/i) || [])[1] || '';
+    if (/underline/i.test(line) && !/^(U|A)$/.test(el.tagName)) wrapChildren(el, 'u');
+    if (/line-through/i.test(line) && el.tagName !== 'S') wrapChildren(el, 's');
+    const align = (style.match(/vertical-align:\s*(super|sub)/i) || [])[1];
+    if (align) wrapChildren(el, align.toLowerCase() === 'super' ? 'sup' : 'sub');
+  }
+}
+// Text styles written on blocks or other inline tags move to a span, where the content model keeps them.
+const SPAN_PROPERTIES = /^(color|background-color|background|font-family|font-size)$/i;
+function stylesToSpans(root) {
+  for (const el of [...root.querySelectorAll('[style]')]) {
+    if (el.tagName === 'SPAN') continue;
+    const props = el.getAttribute('style').split(';').map((d) => d.trim()).filter((d) => SPAN_PROPERTIES.test(d.split(':')[0].trim()));
+    if (!props.length || !el.textContent.trim() || el.querySelector(BLOCKS)) continue;
+    const span = el.ownerDocument.createElement('span');
+    span.setAttribute('style', props.join(';'));
+    span.append(...el.childNodes);
+    el.append(span);
   }
 }
 
@@ -138,4 +160,29 @@ export function normalizeImportedHtml(html, { title = '' } = {}) {
   // Attribute-free spans and links whose address was unsafe carry nothing.
   clean.querySelectorAll('span,a:not([href])').forEach((e) => e.replaceWith(...e.childNodes));
   return { html: [...clean.childNodes].map((n) => (n.nodeType === 1 ? n.outerHTML : n.textContent.trim())).filter(Boolean).join('\n'), images };
+}
+
+/**
+ * Html pasted into a draft: keep the formatting EDoc supports (bold, italic, underline,
+ * strikethrough, palette colours, bundled fonts, preset sizes, alignment, headings, lists,
+ * tables, links) and drop the rest. Text copied from EDoc itself loses its revision marks:
+ * deleted wording and draft ghosts are not current content.
+ */
+export function normalizePastedHtml(html) {
+  const root = inertContainer(html);
+  const doc = root.ownerDocument;
+  const walker = doc.createTreeWalker(root, 128 /* NodeFilter.SHOW_COMMENT */);
+  const comments = [];
+  while (walker.nextNode()) comments.push(walker.currentNode);
+  comments.forEach((c) => c.remove());
+  root.querySelectorAll('script,style,meta,link,title,head,.deleted,.deletion-record,.draft-deletion').forEach((e) => e.remove());
+  wordLists(root);
+  styleToTags(root, { decorations: true });
+  stylesToSpans(root);
+  root.querySelectorAll('span,b,strong,i,em,u,s,font,a').forEach((e) => { if (e.querySelector(BLOCKS)) e.replaceWith(...e.childNodes); });
+  root.querySelectorAll('h4,h5,h6').forEach((h) => rename(h, 'h3'));
+  root.querySelectorAll('[class]').forEach((e) => e.removeAttribute('class'));
+  const clean = inertContainer(sanitizeRevisionHtml(root.innerHTML));
+  clean.querySelectorAll('span:not([style]),a:not([href])').forEach((e) => e.replaceWith(...e.childNodes));
+  return clean.innerHTML;
 }

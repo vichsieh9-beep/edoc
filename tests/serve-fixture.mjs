@@ -1,7 +1,8 @@
 // Serve isolated test HTML; never overwrite the user's current local preview.
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { buildSite, bundleRuntime, loadTemplates, loadDocuments, loadConfig, renderDocument, renderArchived, renderLibrary } from '../scripts/lib/site.mjs';
+import { ROOT, buildSite, bundleRuntime, loadTemplates, loadDocuments, loadConfig, renderDocument, renderArchived, renderLibrary } from '../scripts/lib/site.mjs';
+import { buildFonts } from '../scripts/lib/fonts.mjs';
 import { repoDocument } from './fake-github.js';
 const output='_site/test';
 // File-copy and PDF tooling tests read the production output. A clean CI checkout
@@ -19,5 +20,9 @@ for(const entry of fixtures) {
   await writeFile(join(dir,'index.html'),html);
 }
 await writeFile(join(output,'index.html'),renderLibrary(fixtures,{templates,script:libraryScript,config}));
+// Document pages load the bundled fonts from ../../fonts/ (built next to the real pages).
+await buildFonts();
+await rm(join(output,'fonts'),{recursive:true,force:true});
+await symlink(join(ROOT,'fonts'),join(output,'fonts'));
 process.env.EDOC_SITE_DIR=output;
 await import('../scripts/serve.mjs');

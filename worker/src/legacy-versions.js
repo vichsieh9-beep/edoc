@@ -1,4 +1,6 @@
 import { nextVersion } from '../../src/engine/version.js';
+import { sanitizeRevisionHtml } from '../../src/engine/revision.js';
+import { contentContext } from './content.js';
 import { HttpError } from './errors.js';
 const MAX_BODY = 1_500_000;
 const MAX_HTML = 1_000_000;
@@ -31,8 +33,12 @@ export async function publishLegacy({ body, link, gh, now }) {
   const next = { ...doc, latestVersion: key, versions: { ...doc.versions, [key]: version } };
   const commit = await gh.writeJson(path, next, sha, `Add ${key} to ${body.doc} by ${link.name} via EDoc`,
     '剛好有人同時更新了文件，請重新整理後再試；你的修改已暫存在這個瀏覽器。');
-  return { version: key, commit };
+  return { version: key, commit, html: version.html };
 }
+
+// Stored html follows the same content model the page displays (R2.16): whatever a client
+// sends, only canonical formatting and diff marks are written to the repository.
+export const storedHtml = (html) => sanitizeRevisionHtml(html, contentContext());
 
 // Keep only known fields. The content hash is recomputed by every viewer from the html,
 // so a client-supplied hash is never stored.
@@ -52,7 +58,7 @@ export function validateVersion(v, { previous, editor, now, publication=false })
   const t = created.length === 1 ? Date.parse(created[0].slice(CREATED.length)) : NaN;
   if (Number.isNaN(t) || Math.abs(now - t) > CLOCK_SKEW_MS) throw bad('建立時間錯誤');
   if(publication && (!/^[0-9a-f-]{36}$/.test(v.publicationId||'') || !/^[0-9a-f]{64}$/.test(v.contentHash||''))) throw bad('發布驗證資料錯誤');
-  return { ...(publication?{publicationId:v.publicationId,contentHash:v.contentHash}:{}), summary: v.summary, details: v.details.slice(), previous, html: v.html, uiChanges: [], aiSummary: null };
+  return { ...(publication?{publicationId:v.publicationId,contentHash:v.contentHash}:{}), summary: v.summary, details: v.details.slice(), previous, html: publication ? v.html : storedHtml(v.html), uiChanges: [], aiSummary: null };
 }
 
 const validHtml = (html) => typeof html === 'string' && !!html.trim() && html.length <= MAX_HTML;

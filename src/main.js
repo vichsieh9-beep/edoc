@@ -18,6 +18,7 @@ import { state, latestVersion, ensureHash } from './ui/state.js';
 import { initDocSurface } from './ui/doc-surface.js';
 import { initDraftTracking, startRevision, finishRevision, discardRevision, offerSavedDraft } from './ui/draft.js';
 import { initShare } from './ui/share.js';
+import { initToolbar } from './ui/toolbar.js';
 import { applyCleanState, renderVersion } from './ui/version-view.js';
 import { captureEditToken, checkAccess } from './ui/access.js';
 import { renderEditBar } from './ui/edit-bar.js';
@@ -30,6 +31,7 @@ captureEditToken();
 initDocSurface();
 initDraftTracking();
 initShare();
+initToolbar();
 
 /* Stable engine surface for tests and tooling (e.g. Phase 4 AI changelog, PDF generation). */
 window.EDoc={

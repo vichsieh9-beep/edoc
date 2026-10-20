@@ -54,7 +54,7 @@ function deletionSourceKeys(root,baseHtml,items){
 export function renderRevisionMarkup(formalHtml, {force=false}={}) {
   const panel=document.getElementById('revisionMarkup');
   if(!panel) return;
-  CSS.highlights?.delete('edoc-insertions');
+  CSS.highlights?.delete('edoc-insertions');CSS.highlights?.delete('edoc-formats');
   const draft=state.activeRevision;
   const diff=draft ? formalHtml ?? buildFormalDiff(state.versions[draft.baseVersion].html,el.doc.innerHTML) : null;
   const root=draft ? inertContainer(diff) : el.doc;
@@ -75,18 +75,23 @@ export function renderRevisionMarkup(formalHtml, {force=false}={}) {
   }
   if(!draft){renderedDraft=null;renderedDiff=null;}
   const positions=new Map();
-  const ranges=[];
+  const ranges=[], formatRanges=[];
   const touched=new Set();
+  const extend=(list,target)=>{
+    const previous=list.at(-1);
+    if(previous && previous.endContainer===target.node && previous.endOffset===target.offset) previous.setEnd(target.node,target.offset+1);
+    else { const range=document.createRange(); range.setStart(target.node,target.offset); range.setEnd(target.node,target.offset+1); list.push(range); }
+  };
   if(canMap) {
     compared.forEach((c,i)=>{
       if(!positions.has(c.node)) positions.set(c.node,i);
-      if(!c.node.parentElement.closest('.changed')) return;
+      const parent=c.node.parentElement;
+      const inserted=parent.closest('.changed'), formatted=!inserted&&parent.closest('span.format-changed');
+      // A block whose own format changed (alignment, heading level, list) gets its change bar.
+      const blockFormatted=parent.closest(BLOCK_SELECTOR)?.classList.contains('format-changed');
+      if(!inserted&&!formatted&&!blockFormatted) return;
       const target=live[i];
-      const previous=ranges.at(-1);
-      if(previous && previous.endContainer===target.node && previous.endOffset===target.offset) previous.setEnd(target.node,target.offset+1);
-      else {
-        const range=document.createRange(); range.setStart(target.node,target.offset); range.setEnd(target.node,target.offset+1); ranges.push(range);
-      }
+      if(inserted) extend(ranges,target); else if(formatted) extend(formatRanges,target);
       const block=liveBlock(target.node);
       if(block) touched.add(block);
     });
@@ -110,7 +115,10 @@ export function renderRevisionMarkup(formalHtml, {force=false}={}) {
       el.doc.querySelectorAll('.revision-changed').forEach(n=>{n.classList.remove('revision-changed');if(!n.className)n.removeAttribute('class');});
       touched.forEach(n=>{ if(n!==el.doc) n.classList.add('revision-changed'); });
     });
-    if(draft && !state.clean && CSS.highlights && typeof Highlight!=='undefined') CSS.highlights.set('edoc-insertions',new Highlight(...ranges));
+    if(draft && !state.clean && CSS.highlights && typeof Highlight!=='undefined'){
+      CSS.highlights.set('edoc-insertions',new Highlight(...ranges));
+      CSS.highlights.set('edoc-formats',new Highlight(...formatRanges));
+    }
   }
   panel.hidden=false;
   document.getElementById('documentReview').classList.remove('simple-markup');
@@ -151,12 +159,14 @@ export function renderRevisionMarkup(formalHtml, {force=false}={}) {
   for(const item of items){
     const card=document.createElement('button');card.type='button';card.className='markup-card';card.dataset.changeType=item.type;
     const context=document.createElement('span');context.className='markup-context';context.textContent=item.section||'文件內容';
-    const kind=document.createElement('span');kind.className='markup-kind';kind.textContent={modified:'修改',added:'新增',deleted:'刪除'}[item.type];
+    const kind=document.createElement('span');kind.className='markup-kind';kind.textContent={modified:'修改',added:'新增',deleted:'刪除',format:'格式變更'}[item.type];
     card.append(context,kind);
     if(item.type==='modified'){
       card.append(comparisonLine('修改前：',item.beforePieces),comparisonLine('修訂後：',item.afterPieces));
-      if(item.sameText){const label=document.createElement('span');label.className='markup-context';label.textContent='格式或結構調整';card.append(label);}
-    }else if(item.type==='added')card.append(comparisonLine('新增：',[{text:item.afterText}], 'insertion'));
+      if(item.formats)card.append(comparisonLine('格式：',[{kind:'plain',text:item.formats}]));
+      else if(item.sameText){const label=document.createElement('span');label.className='markup-context';label.textContent='格式或結構調整';card.append(label);}
+    }else if(item.type==='format')card.append(comparisonLine(item.formats+'：',[{text:item.formatText}],'format'));
+    else if(item.type==='added')card.append(comparisonLine('新增：',[{text:item.afterText}], 'insertion'));
     else card.append(comparisonLine('刪除：',[{text:item.beforeText}], 'deletion'));
     const target=itemDestination(item);
     const occurrence=deletedOccurrences.get(item.beforeText)||0;if(item.type==='deleted')deletedOccurrences.set(item.beforeText,occurrence+1);
@@ -165,7 +175,7 @@ export function renderRevisionMarkup(formalHtml, {force=false}={}) {
     panel.append(card);
   }
   const note=document.createElement('p'); note.className='markup-note';
-  note.textContent=items.length ? '所有標記：紅字刪除線表示刪除，藍字底線表示新增；簡單標記只留正文側邊紅線。' : '沒有內容變更';
+  note.textContent=items.length ? '所有標記：紅字粗刪除線表示刪除，藍字雙底線表示新增，藍色虛線底線表示只改了格式；簡單標記只留正文側邊紅線。' : '沒有內容變更';
   panel.append(note);
   configureRevisionNavigation(navigation,{context:draft?'draft:'+draft.id:'version:'+state.activeVersion});
 }
