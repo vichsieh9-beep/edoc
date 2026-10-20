@@ -30,17 +30,20 @@ export function savedDraft() {
 export function saveDraftNow() {
   const r = state.activeRevision;
   if (!r) return;
+  unsaved = false;
   r.html = draftSurfaceHtml();
-  writeStore(draftKey(), JSON.stringify({ baseVersion: r.baseVersion, html: r.html, layout: r.layout, savedAt: nowISO(), sourceSuggestionId:r.sourceSuggestionId,sourceItemIds:r.sourceItemIds,suggestionRequest:r.suggestionRequest }));
+  writeStore(draftKey(), JSON.stringify({ baseVersion: r.baseVersion, html: r.html, layout: r.layout, restoredFrom: r.restoredFrom, savedAt: nowISO(), sourceSuggestionId:r.sourceSuggestionId,sourceItemIds:r.sourceItemIds,suggestionRequest:r.suggestionRequest }));
 }
 // What a draft changes: its words (the formal diff) and its document format (R2.17).
 export function draftSummary(stats, r = state.activeRevision) {
   const changes = layoutChanges(state.versions[r.baseVersion].layout, r.layout);
-  if (!changes.length) return { summary: stats.summary, line: null };
-  const line = layoutChangeLine(changes);
-  return { summary: stats.summary === '未偵測到內容變更' ? line : stats.summary + '；' + line, line };
+  const line = changes.length ? layoutChangeLine(changes) : null;
+  let summary = !line ? stats.summary : stats.summary === '未偵測到內容變更' ? line : stats.summary + '；' + line;
+  // A draft started from a historical version says so (R2.18).
+  if (r.restoredFrom && summary !== '未偵測到內容變更') summary = `還原 ${r.restoredFrom}：` + summary;
+  return { summary, line };
 }
-let saveTimer = null;
+let saveTimer = null, unsaved = false;
 export function clearSavedDraft() { clearTimeout(saveTimer); removeStore(draftKey()); }
 
 export function refreshDraftStats(force=false) {
@@ -66,10 +69,13 @@ export function initDraftTracking() {
     if(!composing) queueMicrotask(()=>{if(!state.composing)refreshDraftStats();});
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraftNow, 600);
+    unsaved = true;
   });
   addEventListener('pagehide', saveDraftNow);
   // The document format dialog changed the draft's layout.
   el.doc.addEventListener('edoc-layout-changed', () => { saveDraftNow(); refreshDraftStats(); });
+  // Typing not saved yet when the draft is left for another version.
+  el.doc.addEventListener('edoc-draft-leaving', () => { if (unsaved) { clearTimeout(saveTimer); saveDraftNow(); } });
 }
 
 export function downloadBackup(revision) {
@@ -91,7 +97,8 @@ export async function startRevision(options={}) {
     sourceSuggestionId:options.sourceSuggestionId||resume?.sourceSuggestionId,sourceItemIds:options.sourceItemIds||resume?.sourceItemIds,suggestionRequest:resume?.suggestionRequest,
     html: options.html || (resume ? sanitizeRevisionHtml(resume.html) : cleanSnapshot(sanitizeRevisionHtml(state.versions[base].html))),
     // The document format starts as the base version's; a resumed draft keeps its own.
-    layout: canonicalLayout(resume && !options.html ? resume.layout : state.versions[base].layout),
+    layout: canonicalLayout('layout' in options ? options.layout : resume && !options.html ? resume.layout : state.versions[base].layout),
+    restoredFrom: options.restoredFrom || (options.html ? undefined : resume?.restoredFrom),
     documentId: state.docState.documentId,
   };
   state.revisions.push(state.activeRevision);
@@ -104,6 +111,31 @@ export async function startRevision(options={}) {
     showNotice(`已恢復你上次未完成的修訂（${localDateTime(resume.savedAt)} 暫存）`, [{ label: '捨棄', onClick: () => discardRevision() }]);
   }
   return state.activeRevision;
+}
+
+// 以這版內容修訂 (R2.18, after Pages' "restore an earlier version"): a draft whose content and
+// document format are those of historical version `v`, compared with the latest version as
+// usual. Publishing it makes a new version; no version is ever changed.
+export async function restoreVersion(v) {
+  const base = latestVersion(), old = state.versions[v];
+  if (!old || v === base || !state.session) return;
+  const saved = savedDraft();
+  const note = `會開一份草稿，內容與文件格式換回 ${v}，並標出跟 ${base} 不同的地方；草稿裡還可以再修改。按「完成修訂-版本更新」才會發布，所有歷史版本都不會被更動。`
+    + (saved ? `你有一份還沒完成的修改（基準 ${saved.baseVersion}），開始後會被取代，可先下載備份。` : '');
+  const actions = saved
+    ? [{ label: '取消', value: null }, { label: '下載修改備份', value: 'backup' }, { label: '取代並開始修訂', value: 'go', primary: true }]
+    : [{ label: '取消', value: null }, { label: '開始修訂', value: 'go', primary: true }];
+  for (;;) {
+    const choice = await openDialog({ title: `以 ${v} 的內容開始修訂？`, summary: `比較基準：目前的 ${base}｜發布後成為 ${nextVersion(base)}`, note, actions });
+    if (choice === 'backup') { downloadBackup({ baseVersion: saved.baseVersion, html: saved.html, author: state.session.name, createdAt: saved.savedAt, status: 'draft' }); continue; }
+    if (choice !== 'go') return;
+    break;
+  }
+  clearSavedDraft();
+  hideNotice();
+  // The draft is based on the latest version: its card is the one shown above the draft.
+  await renderVersion(base);
+  return startRevision({ html: cleanSnapshot(sanitizeRevisionHtml(old.html)), layout: old.layout || null, restoredFrom: v });
 }
 
 // A saved draft whose base is no longer the latest version cannot be resumed automatically.
@@ -173,7 +205,7 @@ export async function finishRevision() {
   const layout = canonicalLayout(r.layout);
   const version = {
     summary,
-    details: [...stats.details, ...(line ? [line] : []), '基準版本：' + base, '編輯者：' + state.session.name, '建立時間：' + nowISO()],
+    details: [...stats.details, ...(line ? [line] : []), ...(r.restoredFrom ? ['還原自：' + r.restoredFrom] : []), '基準版本：' + base, '編輯者：' + state.session.name, '建立時間：' + nowISO()],
     previous: base, html, ...(layout ? { layout } : {}), uiChanges: [], aiSummary: null,
   };
   setBusy(true);

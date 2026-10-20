@@ -406,3 +406,36 @@ details ul{margin-top:6px}
 .fmt-chip svg{vertical-align:-4px;margin-right:3px}
 .fmt-sheet .fmt-grid-wrap{border:0;padding:0;margin:0}
 .fmt-sheet .fmt-grid-wrap .fmt-pop-title{display:none}
+
+/* 章節 (R2.18): the section menu next to the version menu, section links, arrival highlight. */
+.section-button{display:flex;align-items:center;gap:10px;color:#111}
+.section-button .caret{font-size:11px;color:var(--muted)}
+.section-menu{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);width:330px;max-width:min(92vw,330px);
+  max-height:70dvh;overflow-y:auto;overscroll-behavior:contain;background:#fff;border:1px solid var(--line);border-radius:12px;
+  padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.15);display:none;z-index:40;text-align:left}
+.section-menu.open{display:block}
+.section-menu-title{font-size:12px;color:#71717a;font-weight:600;padding:6px 10px 4px}
+.section-item{display:flex;align-items:center;gap:4px;border-radius:8px}
+.section-item:hover{background:#f4f4f5}
+.section-item.active{background:#e8f0fe}
+.section-item.active .section-go{color:#1a4fb5;font-weight:600}
+.section-go{flex:1;min-width:0;text-align:left;border:0;background:transparent;padding:8px 10px;font-size:14px;color:#18181b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.section-item.sub .section-go{padding-left:26px;font-size:13px;color:#3f3f46}
+.section-link{flex:none;border:0;background:transparent;padding:6px;margin-right:4px;color:#71717a;display:inline-flex;border-radius:6px}
+.section-link:hover,.section-go:hover{background:transparent}
+.section-link:hover{color:#1a4fb5;background:#e8f0fe}
+.section-hover-link{position:absolute;z-index:30;width:26px;height:26px;padding:0;border:0;border-radius:6px;background:#e8f0fe;color:#1a4fb5;
+  display:inline-flex;align-items:center;justify-content:center}
+.section-hover-link:hover{background:#dbeafe}
+.section-hover-link svg,.section-link svg{pointer-events:none}
+.section-toast{position:fixed;z-index:95;left:50%;bottom:28px;transform:translateX(-50%);background:#18181b;color:#fff;padding:9px 16px;
+  border-radius:999px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:calc(100vw - 32px)}
+body.formatting .section-toast{bottom:96px}
+.section-arrive{position:absolute;z-index:5;pointer-events:none;background:#fde68a;mix-blend-mode:multiply;border-radius:6px;opacity:.75;transition:opacity .8s}
+.section-arrive.fade{opacity:0}
+@media print{.section-control,.section-hover-link,.section-toast,.section-arrive{display:none!important}}
+
+/* 以這版內容修訂 (R2.18) */
+.version-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.version-actions-hint{font-size:12.5px;color:#71717a}
+.badge.restored{background:#eef2ff;border-color:#a5b4fc;color:#3730a3}

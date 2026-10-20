@@ -21,6 +21,10 @@
       </button>
       <div class="version-menu" id="versionMenu"></div>
     </div>
+    <div class="section-control" id="sectionControl" hidden>
+      <button class="section-button" id="sectionButton" aria-haspopup="menu" aria-expanded="false">章節<span class="caret">▼</span></button>
+      <div class="section-menu" id="sectionMenu" role="menu" aria-label="章節"></div>
+    </div>
     <button id="toggleChanges" class="toggle on">所有標記</button>
   </div>
   <div class="bar-row solo" id="barRow">
@@ -69,12 +73,17 @@
       <summary>詳細變更</summary>
       <ul id="detailList"></ul>
     </details>
+    <div class="version-actions" id="versionActions" hidden>
+      <button id="restoreVersionBtn" class="primary">以這版內容修訂</button>
+      <span class="version-actions-hint" id="restoreHint"></span>
+    </div>
   </section>
 
   <section class="revision-panel" id="revisionPanel">
     <div class="revision-head">
       <span class="revision-title">Draft</span>
       <span class="badge" id="revisionBase"></span>
+      <span class="badge restored" id="revisionRestored" hidden></span>
     </div>
     <div class="revision-summary" id="revisionSummary"></div>
     <div class="revision-meta" id="revisionMeta"></div>

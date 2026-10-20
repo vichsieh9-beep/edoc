@@ -125,7 +125,8 @@ export async function generatePdfs({ outDir, versions: only, exports = true } = 
         }), { waitUntil: 'networkidle' });
         const path = join(dir, `${v.version}.pdf`);
         await pdfPage.pdf({
-          path, format: 'A4', printBackground: true,
+          // Bookmarks from the headings (R2.18); Chromium builds them from a tagged (accessible) PDF.
+          path, format: 'A4', printBackground: true, outline: true, tagged: true,
           margin: { top: '22mm', bottom: '20mm', left: '20mm', right: '20mm' },
           displayHeaderFooter: true,
           headerTemplate: `<div style="${small}"><span>${esc(doc.title)}</span><span>${esc(v.version)}</span></div>`,

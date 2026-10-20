@@ -8,6 +8,8 @@ export function renderRevisionPanel() {
   if(!r){ el.revisionPanel.classList.remove('show'); return; }
   el.revisionPanel.classList.add('show');
   el.revisionBase.textContent='Base '+r.baseVersion;
+  el.revisionRestored.hidden=!r.restoredFrom;
+  el.revisionRestored.textContent=r.restoredFrom?'還原自 '+r.restoredFrom:'';
   const span=t=>Object.assign(document.createElement('span'),{textContent:t});
   el.revisionMeta.replaceChildren(span('編輯者：'+(r.author||'未設定')), span('開始時間：'+localDateTime(r.createdAt)));
   el.revisionHash.textContent='Base SHA-256：'+r.baseHash;

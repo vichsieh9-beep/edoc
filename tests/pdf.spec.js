@@ -17,6 +17,12 @@ test('generates an A4 PDF for the requested version', async ({}, testInfo) => {
   expect(Math.abs(parseFloat(box[2]) - 841.89)).toBeLessThan(2);
   // The content is set in the site's own font (the same as on screen), embedded in the file.
   expect(text).toMatch(/FontName\s*\/[A-Z]{6}\+NotoSansTC/);
+  // Bookmarks: the title, with every section under it (R2.18).
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const outline = await (await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise).getOutline();
+  expect(outline).toHaveLength(1);
+  expect(outline[0].title).toContain('資深遊戲測試工程師');
+  expect(outline[0].items.map((i) => i.title)).toEqual(['【職務簡述】', '【期望特質】', '【需求條件】', '【加分項目】']);
 });
 
 test('the PDF uses the shared type scale and the bundled fonts', () => {

@@ -5,6 +5,7 @@ import { el } from './elements.js';
 import { state } from './state.js';
 import { BLOCK_SELECTOR } from '../engine/dom.js';
 import { layoutCss } from '../engine/layout.js';
+import { renderSections } from './sections.js';
 import { clearDraftDeletions, draftInputRange, restoreDraftSelection } from './draft-deletions.js';
 import {clearRevisionNavigation} from './revision-navigation.js';
 
@@ -52,6 +53,7 @@ export function setDocHtml(html, layout=null) {
   clearRevisionNavigation();
   withObserverPaused(()=>{ clearDraftDeletions(el.doc);el.doc.innerHTML=html; });
   applyLayout(layout);
+  renderSections();
 }
 // The document format (R2.17) of what is shown: a version's, or the draft's while revising.
 export function applyLayout(layout) {
@@ -76,7 +78,8 @@ export function annotateBlocks(root=el.doc) {
   });
 }
 export function leaveRevisionView() {
-  if(state.activeRevision) state.activeRevision.html=draftSurfaceHtml();
+  // Switching to another version keeps the draft saved in this browser, to the last keystroke.
+  if(state.activeRevision){ state.activeRevision.html=draftSurfaceHtml(); el.doc.dispatchEvent(new Event('edoc-draft-leaving')); }
   state.activeRevision=null;
 }
 

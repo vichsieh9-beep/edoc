@@ -1,7 +1,7 @@
 // Editing area of the header: shown only to holders of a valid edit link.
 import {capability} from './access.js';
 import { el } from './elements.js';
-import { state } from './state.js';
+import { state, latestVersion } from './state.js';
 import { updatePdfLink } from './share.js';
 import { renderToolbar } from './toolbar.js';
 
@@ -26,6 +26,10 @@ export function renderEditBar() {
     el.finishRevisionBtn.hidden = !drafting;el.finishRevisionBtn.disabled=!capability('propose');el.finishRevisionBtn.textContent=s.policy?.enabled?'送出修訂建議':'完成修訂-版本更新';
     el.discardRevisionBtn.hidden = !drafting;
   }
+  // 以這版內容修訂 (R2.18): on a historical version, for those who publish directly.
+  const restorable = !!s && !drafting && !state.privateView && state.activeVersion !== latestVersion() && capability('propose') && !s.policy?.enabled;
+  el.versionActions.hidden = !restorable;
+  if (restorable) el.restoreHint.textContent = `開一份草稿，內容換回 ${state.activeVersion}；發布後成為新版本，歷史版本不變`;
   updatePdfLink();
   renderToolbar();
 }

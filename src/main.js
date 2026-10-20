@@ -16,9 +16,10 @@ import { toPlainText } from './engine/text.js';
 import { el } from './ui/elements.js';
 import { state, latestVersion, ensureHash } from './ui/state.js';
 import { initDocSurface } from './ui/doc-surface.js';
-import { initDraftTracking, startRevision, finishRevision, discardRevision, offerSavedDraft } from './ui/draft.js';
+import { initDraftTracking, startRevision, finishRevision, discardRevision, offerSavedDraft, restoreVersion } from './ui/draft.js';
 import { initShare } from './ui/share.js';
 import { initToolbar } from './ui/toolbar.js';
+import { initSections, goToSectionFromAddress } from './ui/sections.js';
 import { applyCleanState, renderVersion } from './ui/version-view.js';
 import { captureEditToken, checkAccess } from './ui/access.js';
 import { renderEditBar } from './ui/edit-bar.js';
@@ -32,6 +33,7 @@ initDocSurface();
 initDraftTracking();
 initShare();
 initToolbar();
+initSections();
 
 /* Stable engine surface for tests and tooling (e.g. Phase 4 AI changelog, PDF generation). */
 window.EDoc={
@@ -61,11 +63,13 @@ el.toggleChanges.addEventListener('click',()=>{clearRevisionSelection();state.cl
 el.newRevisionBtn.addEventListener('click',()=>startRevision());
 el.finishRevisionBtn.addEventListener('click',()=>finishRevision());
 el.discardRevisionBtn.addEventListener('click',()=>discardRevision());
+el.restoreVersionBtn.addEventListener('click',()=>restoreVersion(state.activeVersion));
 
 // Boot: show the latest version, then check for a newer published copy and for edit access.
 (async()=>{
   for(const v of versionOrder(state.versions)) await ensureHash(v);
   await renderVersion(latestVersion());
+  goToSectionFromAddress();
   resumePublishing();
   const newer=await checkForNewerVersion();
   await checkAccess();
